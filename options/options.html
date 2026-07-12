@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Mireki settings</title>
+  <link rel="stylesheet" href="options.css">
+</head>
+<body>
+  <main>
+    <header><span class="mark" aria-hidden="true"></span><div><h1>Mireki</h1><p>Connect scrobbling services.</p></div></header>
+    <section aria-labelledby="services-title">
+      <h2 id="services-title">Services</h2>
+      <div id="services" aria-live="polite"><p class="loading">Loading services…</p></div>
+    </section>
+    <p id="notice" role="status"></p>
+  </main>
+  <template id="service-template">
+    <article class="service-card">
+      <div><h3 class="service-name"></h3><p class="service-status"></p></div>
+      <button type="button"></button>
+    </article>
+  </template>
+  <script src="options-status.js"></script>
+  <script src="options.js"></script>
+</body>
+</html>

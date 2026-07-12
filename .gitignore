@@ -1,2 +1,28 @@
 AGENTS.md
 .pi/
+
+# Local configuration and secrets
+.env*
+!.env.example
+*.key
+*.pem
+*.p12
+*.pfx
+*.crt
+*.cer
+
+# Packages and archives
+*.xpi
+*.zip
+*.tar
+*.tar.gz
+*.tgz
+*.7z
+
+# Build and test artifacts
+build/
+dist/
+coverage/
+.nyc_output/
+test-results/
+web-ext-artifacts/
