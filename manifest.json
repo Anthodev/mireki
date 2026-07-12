@@ -1,0 +1,58 @@
+{
+  "manifest_version": 3,
+  "name": "Mireki",
+  "version": "0.4.0",
+  "description": "Displays current media playback and prepares Trakt scrobbling.",
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "mireki@antho.dev",
+      "strict_min_version": "142.0",
+      "data_collection_permissions": {
+        "required": [
+          "none"
+        ]
+      }
+    }
+  },
+  "host_permissions": [
+    "http://*/*",
+    "https://*/*"
+  ],
+  "background": {
+    "scripts": [
+      "shared/artwork-url.js",
+      "shared/session-store.js",
+      "background/background.js"
+    ]
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "http://*/*",
+        "https://*/*"
+      ],
+      "all_frames": true,
+      "js": [
+        "shared/artwork-url.js",
+        "playback/media-snapshot.js",
+        "content/media-observer.js"
+      ]
+    }
+  ],
+  "icons": {
+    "32": "icons/mireki.svg",
+    "48": "icons/mireki.svg",
+    "96": "icons/mireki.svg"
+  },
+  "action": {
+    "default_icon": {
+      "16": "icons/mireki.svg",
+      "32": "icons/mireki.svg"
+    },
+    "default_title": "Mireki status",
+    "default_popup": "popup/popup.html"
+  },
+  "content_security_policy": {
+    "extension_pages": "script-src 'self'; img-src 'self' https:; object-src 'none'"
+  }
+}

@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Mireki</title>
+    <link rel="stylesheet" href="popup.css">
+  </head>
+  <body>
+    <main>
+      <header class="app-header"><span class="brand-mark" aria-hidden="true"></span><h1>Mireki</h1></header>
+      <p id="message" class="message" role="status">Looking for media…</p>
+      <article id="details" class="media-card" hidden>
+        <div class="hero">
+          <img id="media-artwork" alt="" referrerpolicy="no-referrer" hidden>
+          <div class="scrim" aria-hidden="true"></div>
+          <div class="identity">
+            <span id="media-status" class="status"></span>
+            <h2 id="media-title"></h2>
+            <p id="media-source"></p>
+          </div>
+        </div>
+        <div class="playback">
+          <div class="time-row"><span id="media-time"></span><span id="media-progress"></span></div>
+          <progress id="progress-bar" max="100" aria-label="Playback progress"></progress>
+        </div>
+      </article>
+    </main>
+    <script src="popup-state.js"></script>
+    <script src="popup.js"></script>
+  </body>
+</html>
