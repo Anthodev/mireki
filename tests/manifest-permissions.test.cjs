@@ -1,6 +1,7 @@
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const manifest = JSON.parse(fs.readFileSync("manifest.json"));
+const { PROVIDER_HOSTS } = require("../shared/session-store.js");
 const expected = [
   "https://*.animationdigitalnetwork.com/*",
   "https://*.crunchyroll.com/*",
@@ -12,12 +13,15 @@ const expected = [
   "https://*.paramountplus.com/*",
   "https://*.peacocktv.com/*",
   "https://*.primevideo.com/*",
-  "https://*.youtube.com/*",
-  "https://*.youtube-nocookie.com/*",
   "https://tv.apple.com/*",
 ];
-assert.deepEqual(manifest.host_permissions, expected);
+assert.deepEqual(manifest.host_permissions, [...expected, "https://api.trakt.tv/*"]);
 assert.deepEqual(manifest.content_scripts[0].matches, expected);
+assert.ok(manifest.permissions.includes("alarms"), "one-shot alarm expires stale scrobble state while popup is closed");
+assert.deepEqual(PROVIDER_HOSTS, expected.filter((pattern) => pattern.includes("*.")).map((pattern) => new URL(pattern.replace("*.", "www.")).hostname.slice(4)), "runtime provider allowlist stays synchronized");
 assert.equal(expected.some((pattern) => pattern.includes("<all_urls>") || pattern.startsWith("http://") || pattern === "https://*/*"), false);
 assert.equal(expected.some((pattern) => pattern.includes("amazon.")), false, "retail Amazon domains stay excluded");
+const scripts = manifest.background.scripts;
+assert.ok(scripts.indexOf("background/auth-background.js") < scripts.indexOf("background/scrobble-background.js"));
+assert.ok(scripts.indexOf("background/scrobble-background.js") < scripts.indexOf("background/background.js"), "controller initializes before sole observation listener");
 console.log("manifest permission checks: OK");

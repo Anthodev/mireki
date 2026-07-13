@@ -8,7 +8,7 @@ const element = () => ({
   removeAttribute(name) { delete this.attributes[name]; },
 });
 const elements = {
-  message: element(), details: element(), artwork: element(), title: element(), source: element(), status: element(),
+  message: element(), details: element(), artwork: element(), title: element(), source: element(), status: element(), sync: element(),
   time: element(), progress: element(), bar: element(),
 };
 
@@ -22,9 +22,10 @@ assert.equal(elements.artwork.getAttribute("src"), null);
 renderState({ kind: "media", media: {
   kind: "video", title: "<img onerror=alert(1)>", artist: "Channel <b>name</b>", album: null, artwork: "https://img.test/cover.jpg",
   currentTime: 30, duration: 120, state: "playing", progress: 25,
-}, source: { pageTitle: "Unsafe <b>page</b>", hostname: "example.test" } }, elements);
+}, source: { pageTitle: "Unsafe <b>page</b>", hostname: "example.test" }, sync: { state: "scrobbling" } }, elements);
 assert.equal(elements.title.textContent, "<img onerror=alert(1)>");
 assert.equal(elements.status.textContent, "Playing");
+assert.equal(elements.sync.textContent, "Scrobbling");
 assert.equal(elements.source.textContent, "Channel <b>name</b>");
 assert.equal(elements.progress.textContent, "25.0 %");
 assert.equal(elements.bar.value, 25);

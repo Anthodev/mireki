@@ -7,6 +7,7 @@ const elements = {
   status: document.querySelector("#media-status"),
   time: document.querySelector("#media-time"),
   progress: document.querySelector("#media-progress"),
+  sync: document.querySelector("#sync-status"),
   bar: document.querySelector("#progress-bar"),
 };
 

@@ -2,14 +2,16 @@
   "manifest_version": 3,
   "name": "Mireki",
   "version": "0.5.0",
-  "description": "Displays current media playback and prepares Trakt scrobbling.",
+  "description": "Displays current media playback and enables Trakt scrobbling.",
   "browser_specific_settings": {
     "gecko": {
       "id": "mireki@antho.dev",
       "strict_min_version": "142.0",
       "data_collection_permissions": {
         "required": [
-          "authenticationInfo"
+          "authenticationInfo",
+          "websiteActivity",
+          "websiteContent"
         ]
       }
     }
@@ -25,9 +27,8 @@
     "https://*.paramountplus.com/*",
     "https://*.peacocktv.com/*",
     "https://*.primevideo.com/*",
-    "https://*.youtube.com/*",
-    "https://*.youtube-nocookie.com/*",
-    "https://tv.apple.com/*"
+    "https://tv.apple.com/*",
+    "https://api.trakt.tv/*"
   ],
   "background": {
     "scripts": [
@@ -36,8 +37,12 @@
       "services/trakt-auth.js",
       "shared/artwork-url.js",
       "shared/session-store.js",
-      "background/background.js",
-      "background/auth-background.js"
+      "trakt/trakt-client.js",
+      "trakt/trakt-matcher.js",
+      "playback/scrobble-controller.js",
+      "background/auth-background.js",
+      "background/scrobble-background.js",
+      "background/background.js"
     ]
   },
   "content_scripts": [
@@ -53,8 +58,6 @@
         "https://*.paramountplus.com/*",
         "https://*.peacocktv.com/*",
         "https://*.primevideo.com/*",
-        "https://*.youtube.com/*",
-        "https://*.youtube-nocookie.com/*",
         "https://tv.apple.com/*"
       ],
       "all_frames": true,
@@ -83,7 +86,8 @@
   },
   "permissions": [
     "identity",
-    "storage"
+    "storage",
+    "alarms"
   ],
   "options_ui": {
     "page": "options/options.html",

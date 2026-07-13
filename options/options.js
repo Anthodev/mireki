@@ -18,8 +18,12 @@ async function loadServices() {
       button.addEventListener("click", async () => {
         button.disabled = true;
         notice.textContent = service.connected ? "Disconnecting…" : "Opening secure sign-in…";
-        const result = await browser.runtime.sendMessage({ type: service.connected ? "auth:disconnect" : "auth:connect", serviceId: service.id });
-        notice.textContent = MirekiOptionsStatus.resultNotice(result);
+        try {
+          const result = await browser.runtime.sendMessage({ type: service.connected ? "auth:disconnect" : "auth:connect", serviceId: service.id });
+          notice.textContent = MirekiOptionsStatus.resultNotice(result);
+        } catch {
+          notice.textContent = "Authentication failed.";
+        }
         await loadServices();
       });
       container.append(card);

@@ -7,6 +7,7 @@ authServices.set("trakt", MirekiTraktAuth.createTraktAuth({
   fetch: globalThis.fetch.bind(globalThis),
   crypto: globalThis.crypto,
 }));
+globalThis.MirekiAuthServices = authServices;
 
 function trustedExtensionPage(sender) {
   const url = sender?.url || sender?.tab?.url;
@@ -19,8 +20,21 @@ browser.runtime.onMessage.addListener((message, sender) => {
   if ((message.type === "auth:connect" || message.type === "auth:disconnect") && typeof message.serviceId === "string") {
     const service = authServices.get(message.serviceId);
     if (!service) return Promise.resolve({ ok: false, error: "Unknown service" });
-    const operation = message.type === "auth:connect" ? service.connect : service.disconnect;
-    return operation().then((status) => ({ ok: true, status }), () => ({ ok: false, error: "Authentication failed" }));
+    if (message.type === "auth:disconnect") return (async () => {
+      if (service.id === "trakt") await globalThis.MirekiScrobble?.reset();
+      try {
+        const status = await service.disconnect();
+        return { ok: true, status };
+      } catch {
+        return { ok: false, error: "Authentication failed" };
+      } finally {
+        if (service.id === "trakt") await browser.storage.local.remove(MirekiScrobbleController.COMPLETED_KEY);
+      }
+    })();
+    return service.connect().then((status) => {
+      if (service.id === "trakt") globalThis.MirekiScrobble?.resume();
+      return { ok: true, status };
+    }, () => ({ ok: false, error: "Authentication failed" }));
   }
   return undefined;
 });

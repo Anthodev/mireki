@@ -8,9 +8,17 @@
   const STATUS = "status:get";
   const STATES = new Set(["playing", "paused", "ended"]);
   const KINDS = new Set(["video", "audio"]);
-  const httpUrl = (value) => {
-    try { return /^https?:$/.test(new URL(value).protocol); } catch { return false; }
-  };
+  const PROVIDER_HOSTS = Object.freeze([
+    "animationdigitalnetwork.com", "crunchyroll.com", "disneyplus.com", "hbomax.com", "hulu.com",
+    "max.com", "netflix.com", "paramountplus.com", "peacocktv.com", "primevideo.com",
+  ]);
+  function providerUrl(value) {
+    try {
+      const url = new URL(value);
+      return url.protocol === "https:" && (url.hostname === "tv.apple.com"
+        || PROVIDER_HOSTS.some((host) => url.hostname === host || url.hostname.endsWith(`.${host}`)));
+    } catch { return false; }
+  }
   const boundedString = (value, max) => typeof value === "string" && value.length <= max;
   const finiteRange = (value, min, max = Infinity) => Number.isFinite(value) && value >= min && value <= max;
   const validArtwork = (value) => value == null || MirekiArtwork.isValidArtworkUrl(value);
@@ -34,20 +42,28 @@
       && boundedString(message.pageTitle, 300);
   }
 
+  function validObservationSender(sender, extensionId) {
+    return sender?.id === extensionId && Number.isInteger(sender?.tab?.id)
+      && Number.isInteger(sender?.frameId) && sender.frameId >= 0
+      && providerUrl(sender.url) && providerUrl(sender.tab.url);
+  }
+
   class SessionStore {
     constructor({ extensionId, now = Date.now, staleMs = 30_000 }) {
       this.extensionId = extensionId;
       this.now = now;
       this.staleMs = staleMs;
       this.frames = new Map();
+      this.selectedKey = null;
     }
 
     ingest(message, sender) {
-      if (sender?.id !== this.extensionId || !Number.isInteger(sender?.tab?.id)
-        || !Number.isInteger(sender?.frameId) || sender.frameId < 0
-        || !httpUrl(sender.url) || !httpUrl(sender.tab.url) || !validObservation(message)) return false;
+      if (!validObservationSender(sender, this.extensionId) || !validObservation(message)) return false;
       const key = `${sender.tab.id}:${sender.frameId}`;
-      if (message.media === null) this.frames.delete(key);
+      if (message.media === null) {
+        this.frames.delete(key);
+        if (this.selectedKey === key) this.selectedKey = null;
+      }
       else {
         const url = sender.tab.url;
         this.frames.set(key, {
@@ -66,26 +82,41 @@
     }
 
     removeTab(tabId) {
-      for (const [key, entry] of this.frames) if (entry.source.tabId === tabId) this.frames.delete(key);
+      for (const [key, entry] of this.frames) if (entry.source.tabId === tabId) {
+        this.frames.delete(key);
+        if (this.selectedKey === key) this.selectedKey = null;
+      }
     }
 
     cleanup() {
       const cutoff = this.now() - this.staleMs;
-      for (const [key, entry] of this.frames) if (entry.updatedAt < cutoff) this.frames.delete(key);
+      for (const [key, entry] of this.frames) if (entry.updatedAt <= cutoff) {
+        this.frames.delete(key);
+        if (this.selectedKey === key) this.selectedKey = null;
+      }
+    }
+
+    nextExpiry() {
+      if (!this.frames.size) return null;
+      return Math.min(...[...this.frames.values()].map((entry) => entry.updatedAt + this.staleMs));
     }
 
     status() {
       this.cleanup();
-      const entries = [...this.frames.values()];
-      if (!entries.length) return { kind: "empty" };
-      entries.sort((a, b) => {
+      if (!this.frames.size) return { kind: "empty" };
+      const current = this.frames.get(this.selectedKey);
+      if (current?.media.state === "playing") return { kind: "media", media: current.media, source: current.source };
+      const entries = [...this.frames.entries()];
+      entries.sort(([, a], [, b]) => {
         const rank = (entry) => entry.media.state === "playing" ? 2 : entry.media.state === "paused" ? 1 : 0;
         return rank(b) - rank(a) || b.updatedAt - a.updatedAt
           || a.source.tabId - b.source.tabId || a.source.frameId - b.source.frameId;
       });
-      return { kind: "media", media: entries[0].media, source: entries[0].source };
+      const [key, entry] = entries[0];
+      this.selectedKey = key;
+      return { kind: "media", media: entry.media, source: entry.source };
     }
   }
 
-  return { OBSERVATION, STATUS, SessionStore, validMedia, validObservation };
+  return { OBSERVATION, STATUS, PROVIDER_HOSTS, SessionStore, validMedia, validObservation, validObservationSender };
 });

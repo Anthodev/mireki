@@ -7,6 +7,11 @@ function formatTime(seconds) {
   return hours ? `${hours}:${String(minutes).padStart(2, "0")}:${String(rest).padStart(2, "0")}` : `${minutes}:${String(rest).padStart(2, "0")}`;
 }
 const stateLabels = { playing: "Playing", paused: "Paused", ended: "Ended" };
+const syncLabels = {
+  idle: "Idle", notConnected: "Not connected", matching: "Matching", unmatched: "Unmatched",
+  ambiguous: "Ambiguous", needsEpisode: "Episode unknown", unsupported: "Unsupported",
+  syncing: "Syncing", scrobbling: "Scrobbling", paused: "Paused", synced: "Synced", error: "Sync error",
+};
 const sameText = (left, right) => left?.trim().toLocaleLowerCase() === right?.trim().toLocaleLowerCase();
 function sourceLabel(media, source, displayedTitle = media.title) {
   if (media.artist && !sameText(media.artist, displayedTitle)) return media.artist;
@@ -31,6 +36,7 @@ function renderState(state, elements) {
   elements.title.textContent = displayedTitle;
   elements.source.textContent = sourceLabel(media, state.source, displayedTitle);
   elements.status.textContent = stateLabels[media.state] || "Unknown state";
+  if (elements.sync) elements.sync.textContent = syncLabels[state.sync?.state] || syncLabels.idle;
   elements.time.textContent = `${formatTime(media.currentTime)} / ${formatTime(media.duration)}`;
   elements.progress.textContent = media.progress === null ? "Unknown progress" : `${media.progress.toFixed(1)} %`;
   elements.bar.hidden = media.progress === null;

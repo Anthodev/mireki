@@ -33,3 +33,6 @@ progress::-moz-progress-bar { border-radius: 999px; background: var(--accent); }
 progress::-webkit-progress-bar { background: var(--track); }
 progress::-webkit-progress-value { background: var(--accent); }
 [hidden] { display: none !important; }
+
+.sync-row { display: flex; justify-content: space-between; gap: 1rem; margin-bottom: .65rem; color: var(--muted); font-size: .75rem; }
+.sync-row strong { color: var(--text); font-weight: 650; }
