@@ -13,14 +13,21 @@
         <div class="hero">
           <img id="media-artwork" alt="" referrerpolicy="no-referrer" hidden>
           <div class="scrim" aria-hidden="true"></div>
+          <div class="hero-statuses">
+            <span id="media-status" class="status playback-status"></span>
+            <span id="sync-status" class="status sync-status">
+              <svg class="sync-icon" viewBox="0 0 16 16" aria-hidden="true">
+                <path d="M13.5 5.5V2.3l-1.3 1.3A5.5 5.5 0 0 0 2.6 6M2.5 10.5v3.2l1.3-1.3a5.5 5.5 0 0 0 9.6-2.4"/>
+              </svg>
+              <span id="sync-label"></span>
+            </span>
+          </div>
           <div class="identity">
-            <span id="media-status" class="status"></span>
             <h2 id="media-title"></h2>
             <p id="media-source"></p>
           </div>
         </div>
         <div class="playback">
-          <div class="sync-row"><span>Trakt</span><strong id="sync-status"></strong></div>
           <div class="time-row"><span id="media-time"></span><span id="media-progress"></span></div>
           <progress id="progress-bar" max="100" aria-label="Playback progress"></progress>
         </div>

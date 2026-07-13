@@ -8,6 +8,7 @@ const elements = {
   time: document.querySelector("#media-time"),
   progress: document.querySelector("#media-progress"),
   sync: document.querySelector("#sync-status"),
+  syncLabel: document.querySelector("#sync-label"),
   bar: document.querySelector("#progress-bar"),
 };
 

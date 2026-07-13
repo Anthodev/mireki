@@ -1,5 +1,5 @@
 const assert = require("node:assert/strict");
-const { createScrobbleController, COMPLETED_KEY, NEGATIVE_TTL } = require("../playback/scrobble-controller.js");
+const { createScrobbleController, COMPLETED_KEY, MIN_SCROBBLE_PROGRESS, NEGATIVE_TTL } = require("../playback/scrobble-controller.js");
 let stored = {};
 const storage = { async get(key) { return { [key]: stored[key] }; }, async set(value) { Object.assign(stored, value); } };
 const calls = [];
@@ -9,6 +9,21 @@ const source = (tabId, frameId = 0) => ({ tabId, frameId, url: `https://site${ta
 const status = (title, progress, state, tabId = 1, frameId = 0, extra = {}) => ({ kind: "media", source: source(tabId, frameId), media: { title, artist: null, album: null, duration: 100, progress, state, ...extra } });
 
 (async () => {
+  assert.equal(MIN_SCROBBLE_PROGRESS, 1);
+  const earlyCalls = [];
+  const early = createScrobbleController({ matcher, client: { async scrobble(action) { earlyCalls.push(action); return { action }; } }, isConnected: async () => true, storage: { async get(){return{};},async set(){} } });
+  await early.handle(status("One", 0.5, "playing", 12));
+  await early.handle(status("One", 0.5, "paused", 12));
+  assert.deepEqual(earlyCalls, [], "play and pause below one percent stay local");
+  assert.equal(early.statusFor(source(12)).state, "paused");
+  await early.handle(status("One", 1, "playing", 12));
+  await early.handle(status("One", 2, "paused", 12));
+  assert.deepEqual(earlyCalls, ["start", "pause"], "Trakt lifecycle starts at one percent");
+  await early.handle(status("One", 2, "playing", 12));
+  await early.handle(status("One", 0.5, "playing", 12));
+  await early.handle(status("One", 10, "playing", 13));
+  assert.deepEqual(earlyCalls, ["start", "pause", "start", "start"], "winner replacement never pauses below one percent");
+
   const controller = createScrobbleController({ matcher, client, isConnected: async () => true, storage, now: () => 1234 });
   await controller.handle(status("One", 10, "playing"));
   await controller.handle(status("One", 20, "playing", 2));

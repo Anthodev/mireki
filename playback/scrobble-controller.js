@@ -5,6 +5,7 @@
 })(globalThis, () => {
   const COMPLETED_KEY = "scrobble.completed.v1";
   const THRESHOLD = 85;
+  const MIN_SCROBBLE_PROGRESS = 1;
   const NEGATIVE_TTL = 5 * 60_000;
   const validCompleted = (value) => value && typeof value === "object" && !Array.isArray(value);
   const sourceKey = (source) => `${source?.tabId}:${source?.frameId}`;
@@ -54,7 +55,8 @@
       await onUnauthorized().catch(() => {});
     }
     async function pausePrevious(nextKey) {
-      if (!selected?.match || selected.key === nextKey || selected.lastPlayback !== "playing") return;
+      if (!selected?.match || selected.key === nextKey || selected.lastPlayback !== "playing"
+        || selected.progress < MIN_SCROBBLE_PROGRESS) return;
       try { await client.scrobble("pause", selected.match.item, selected.progress); } catch (error) {
         if (error?.status === 401) await unauthorized();
       }
@@ -95,6 +97,11 @@
           done = await completed();
         }
         if (done[state.match.key]) { state.status = "synced"; state.lastPlayback = "stopped"; return; }
+        if (media.progress < MIN_SCROBBLE_PROGRESS) {
+          state.status = media.state === "playing" ? "scrobbling" : "paused";
+          if (state.lastPlayback !== "playing") state.lastPlayback = null;
+          return;
+        }
         const action = media.progress >= THRESHOLD ? "stop"
           : media.state === "playing" && state.lastPlayback !== "playing" ? "start"
           : media.state !== "playing" && state.lastPlayback === "playing" ? "pause" : null;
@@ -134,5 +141,5 @@
     function resume() { suspended = false; }
     return { handle, statusFor, reset, resume };
   }
-  return { COMPLETED_KEY, THRESHOLD, NEGATIVE_TTL, createScrobbleController };
+  return { COMPLETED_KEY, THRESHOLD, MIN_SCROBBLE_PROGRESS, NEGATIVE_TTL, createScrobbleController };
 });

@@ -16,7 +16,7 @@
   const progressValue = (value) => Number.isFinite(value) && value >= 0 && value <= 100;
   function createTraktClient({ getAccessToken, clientId, fetch, now = Date.now }) {
     if (typeof clientId !== "string" || !clientId || clientId.length > 300) throw new Error("Invalid Trakt client ID");
-    async function request(path, { method = "GET", body, duplicateStop = false } = {}) {
+    async function request(path, { method = "GET", body, conflictAction = null } = {}) {
       const token = await getAccessToken();
       if (!token) throw new TraktApiError(401);
       const response = await fetch(`${API_URL}${path}`, {
@@ -32,7 +32,7 @@
         referrerPolicy: "no-referrer",
       });
       const value = await response.json().catch(() => null);
-      if (duplicateStop && response.status === 409) return { action: "scrobble", duplicate: true };
+      if (conflictAction && response.status === 409) return { action: conflictAction, duplicate: true };
       if (!response.ok || value === null) {
         const seconds = Number(response.headers?.get?.("Retry-After"));
         throw new TraktApiError(response.status, Number.isFinite(seconds) && seconds > 0 ? now() + seconds * 1000 : 0);
@@ -67,7 +67,7 @@
       const value = await request(`/scrobble/${action}`, {
         method: "POST",
         body: { [item.type]: { ids: { trakt: item.traktId } }, progress },
-        duplicateStop: action === "stop",
+        conflictAction: action === "stop" ? "scrobble" : action === "pause" ? "pause" : null,
       });
       const expected = action === "stop" ? "scrobble" : action;
       if (value.action !== expected) throw new TraktApiError(502);

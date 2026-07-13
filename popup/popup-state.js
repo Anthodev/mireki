@@ -36,7 +36,13 @@ function renderState(state, elements) {
   elements.title.textContent = displayedTitle;
   elements.source.textContent = sourceLabel(media, state.source, displayedTitle);
   elements.status.textContent = stateLabels[media.state] || "Unknown state";
-  if (elements.sync) elements.sync.textContent = syncLabels[state.sync?.state] || syncLabels.idle;
+  const syncState = state.sync?.state || "idle";
+  const syncLabel = syncLabels[syncState] || syncLabels.idle;
+  if (elements.syncLabel) elements.syncLabel.textContent = syncLabel;
+  if (elements.sync) {
+    elements.sync.dataset.state = syncState;
+    elements.sync.setAttribute("aria-label", `Trakt synchronization: ${syncLabel}`);
+  }
   elements.time.textContent = `${formatTime(media.currentTime)} / ${formatTime(media.duration)}`;
   elements.progress.textContent = media.progress === null ? "Unknown progress" : `${media.progress.toFixed(1)} %`;
   elements.bar.hidden = media.progress === null;

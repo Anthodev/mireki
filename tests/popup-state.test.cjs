@@ -2,13 +2,13 @@ const assert = require("node:assert/strict");
 const { formatTime, renderState } = require("../popup/popup-state.js");
 
 const element = () => ({
-  hidden: false, textContent: "", value: 0, attributes: {},
+  hidden: false, textContent: "", value: 0, attributes: {}, dataset: {},
   getAttribute(name) { return this.attributes[name] || null; },
   setAttribute(name, value) { this.attributes[name] = value; },
   removeAttribute(name) { delete this.attributes[name]; },
 });
 const elements = {
-  message: element(), details: element(), artwork: element(), title: element(), source: element(), status: element(), sync: element(),
+  message: element(), details: element(), artwork: element(), title: element(), source: element(), status: element(), sync: element(), syncLabel: element(),
   time: element(), progress: element(), bar: element(),
 };
 
@@ -25,7 +25,9 @@ renderState({ kind: "media", media: {
 }, source: { pageTitle: "Unsafe <b>page</b>", hostname: "example.test" }, sync: { state: "scrobbling" } }, elements);
 assert.equal(elements.title.textContent, "<img onerror=alert(1)>");
 assert.equal(elements.status.textContent, "Playing");
-assert.equal(elements.sync.textContent, "Scrobbling");
+assert.equal(elements.syncLabel.textContent, "Scrobbling");
+assert.equal(elements.sync.dataset.state, "scrobbling");
+assert.equal(elements.sync.getAttribute("aria-label"), "Trakt synchronization: Scrobbling");
 assert.equal(elements.source.textContent, "Channel <b>name</b>");
 assert.equal(elements.progress.textContent, "25.0 %");
 assert.equal(elements.bar.value, 25);
