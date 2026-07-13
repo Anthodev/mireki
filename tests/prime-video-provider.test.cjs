@@ -92,6 +92,10 @@ assert.equal(extract(player("Spider-Noir", "Reprendre S. 1 Ép. 1")), null,
   "detail-page resume label is not accepted as current episode metadata");
 assert.equal(extract(player("Spider-Noir", "1. Passez dans mon bureau")), null,
   "episode-list title alone is not current playback evidence");
+assert.equal(extract(player("Series", "S1E3 / S2E3 Conflicting metadata")), null,
+  "conflicting player coordinates are rejected");
+assert.equal(extract(player("Series", "Season 1 Episode 2nd Place")), null,
+  "ordinal text is not accepted as explicit player coordinates");
 assert.equal(extract(player("Spider-Noir", "Live now")), null);
 assert.equal(extract(player("", "Saison 1, ép. 1 Episode")), null);
 assert.equal(extract(player("Series", "Saison 1000, ép. 1 Episode")), null);

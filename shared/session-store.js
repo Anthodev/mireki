@@ -9,14 +9,13 @@
   const STATES = new Set(["playing", "paused", "ended"]);
   const KINDS = new Set(["video", "audio"]);
   const PROVIDER_HOSTS = Object.freeze([
-    "animationdigitalnetwork.com", "crunchyroll.com", "disneyplus.com", "hbomax.com", "hulu.com",
-    "max.com", "netflix.com", "paramountplus.com", "peacocktv.com", "primevideo.com",
+    "crunchyroll.com", "netflix.com", "primevideo.com",
   ]);
   function providerUrl(value) {
     try {
       const url = new URL(value);
-      return url.protocol === "https:" && (url.hostname === "tv.apple.com"
-        || PROVIDER_HOSTS.some((host) => url.hostname === host || url.hostname.endsWith(`.${host}`)));
+      return url.protocol === "https:"
+        && PROVIDER_HOSTS.some((host) => url.hostname === host || url.hostname.endsWith(`.${host}`));
     } catch { return false; }
   }
   const boundedString = (value, max) => typeof value === "string" && value.length <= max;

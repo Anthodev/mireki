@@ -1,11 +1,11 @@
 (function (root, factory) {
-  const api = factory();
+  const episodeApi = root.MirekiEpisodeLabel
+    || (typeof require === "function" ? require("../shared/episode-label.js") : null);
+  const api = factory(episodeApi);
   if (typeof module === "object" && module.exports) module.exports = api;
   else root.MirekiProviderAdapter = api;
-})(globalThis, () => {
+})(globalThis, (MirekiEpisodeLabel) => {
   const VIDEO_TITLE_UIA = /(^|-)video-title($|-)/i;
-  const COORDINATES = /\bS\s*(\d{1,3})\s*[:.\-]?\s*E\s*(\d{1,4})\b/iu;
-  const EPISODE_LABEL = /\bE\s*(\d{1,4})\b/iu;
   const HEADING_SELECTOR = "h1, h2, h3, h4, h5, h6";
   const TEXT_SELECTOR = `${HEADING_SELECTOR}, span`;
   let cachedWatchId = null;
@@ -44,6 +44,10 @@
     const parts = textParts(element);
     if (!parts.length) return null;
     const heading = text(element.querySelector?.(HEADING_SELECTOR)?.textContent);
+    const scopeValues = parts.flatMap((value, index) => index + 1 < parts.length
+      ? [value, `${value} ${parts[index + 1]}`] : [value]);
+    const scopeCoordinates = MirekiEpisodeLabel.parseEpisode(scopeValues);
+    const scopeEpisodeNumber = MirekiEpisodeLabel.parseAbsoluteEpisode(scopeValues);
     let coordinate;
     let coordinateIndex = -1;
     let consumed = 1;
@@ -52,35 +56,38 @@
 
     for (let index = 0; index < parts.length; index++) {
       let value = parts[index];
-      let match = value.match(COORDINATES);
+      let match = MirekiEpisodeLabel.findCoordinates(value);
       if (!match && index + 1 < parts.length) {
         value = `${value} ${parts[index + 1]}`;
-        match = value.match(COORDINATES);
+        match = MirekiEpisodeLabel.findCoordinates(value);
         if (match) consumed = 2;
       }
       if (!match) continue;
-      coordinate = `S${Number(match[1])}E${Number(match[2])}`;
+      if (!scopeCoordinates || match.season !== scopeCoordinates.season
+        || match.episode !== scopeCoordinates.episode) return { conflict: true };
+      coordinate = `S${match.season}E${match.episode}`;
       coordinateIndex = index;
       prefix = text(value.slice(0, match.index));
-      suffix = text(value.slice(match.index + match[0].length));
+      suffix = text(value.slice(match.index + match.length));
       break;
     }
 
     if (!coordinate) {
       for (let index = 0; index < parts.length; index++) {
         let value = parts[index];
-        let match = value.match(EPISODE_LABEL);
+        let match = MirekiEpisodeLabel.findEpisodeNumber(value);
         let consumedParts = 1;
         if (!match && index + 1 < parts.length) {
           value = `${value} ${parts[index + 1]}`;
-          match = value.match(EPISODE_LABEL);
+          match = MirekiEpisodeLabel.findEpisodeNumber(value);
           if (match) consumedParts = 2;
         }
         if (!match) continue;
+        if (match.episode !== scopeEpisodeNumber) return { conflict: true };
         const show = text(value.slice(0, match.index)) || parts[index - 1] || null;
-        const episodeTitle = text(value.slice(match.index + match[0].length))
+        const episodeTitle = text(value.slice(match.index + match.length))
           || parts[index + consumedParts] || null;
-        const episodeNumber = Number(match[1]);
+        const episodeNumber = match.episode;
         if (show && episodeTitle && episodeNumber > 0) {
           return { title: episodeTitle, artist: show, episodeNumber, hasCoordinates: false, hasEpisodeLabel: true };
         }
@@ -88,9 +95,11 @@
       return { title: parts.length === 1 ? parts[0] : heading || parts[0], hasCoordinates: false };
     }
 
-    const before = parts.slice(0, coordinateIndex).find((value) => !COORDINATES.test(value));
-    const after = parts.slice(coordinateIndex + consumed).find((value) => !COORDINATES.test(value));
-    const artist = heading && !COORDINATES.test(heading) ? heading : prefix || before || null;
+    const before = parts.slice(0, coordinateIndex)
+      .find((value) => !MirekiEpisodeLabel.findCoordinates(value));
+    const after = parts.slice(coordinateIndex + consumed)
+      .find((value) => !MirekiEpisodeLabel.findCoordinates(value));
+    const artist = heading && !MirekiEpisodeLabel.findCoordinates(heading) ? heading : prefix || before || null;
     const episodeTitle = suffix || after || null;
     return {
       title: text([coordinate, episodeTitle].filter(Boolean).join(" - ")),
@@ -103,6 +112,7 @@
     let fallback = null;
     for (let scope = element, depth = 0; scope && depth < 3; scope = scope.parentElement, depth++) {
       const parsed = parseTitleScope(scope);
+      if (parsed?.conflict) return parsed;
       fallback ||= parsed;
       if (parsed?.hasCoordinates || parsed?.hasEpisodeLabel) return parsed;
     }
@@ -122,6 +132,10 @@
     }
 
     const parsed = parseTitleElement(findTitleElement(document));
+    if (parsed?.conflict) {
+      cachedMetadata = null;
+      return null;
+    }
     if (parsed?.title) cachedMetadata = parsed;
     const current = parsed?.title ? parsed : cachedMetadata;
     if (!current) return null;

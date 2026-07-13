@@ -30,19 +30,11 @@ A Trakt account is optional: without one, Mireki still provides a simple global 
 
 Mireki can observe standard media playback on:
 
-- Animation Digital Network
-- Apple TV+
 - Crunchyroll
-- Disney+
-- HBO Max
-- Hulu
-- Max
 - Netflix
-- Paramount+
-- Peacock
 - Prime Video
 
-Provider support depends on metadata exposed by each website and by Firefox. Netflix and Prime Video include dedicated, player-scoped fallbacks for series and episode labels when standard metadata is insufficient. Other services use the same provider-neutral media observer and may need additional real-world validation.
+Provider support depends on metadata exposed by each website and by Firefox. Netflix and Prime Video include dedicated, player-scoped fallbacks for series and episode labels when standard metadata is insufficient. Crunchyroll uses the provider-neutral media observer.
 
 ## Trakt scrobbling
 

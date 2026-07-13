@@ -1,53 +1,14 @@
 (function (root, factory) {
-  const api = factory();
+  const episodeApi = root.MirekiEpisodeLabel
+    || (typeof require === "function" ? require("../shared/episode-label.js") : null);
+  const api = factory(episodeApi);
   if (typeof module === "object" && module.exports) module.exports = api;
   else root.MirekiTraktMatcher = api;
-})(globalThis, () => {
+})(globalThis, (MirekiEpisodeLabel) => {
   const bounded = (value) => typeof value === "string" && value.trim() ? value.trim().slice(0, 300) : null;
   const unique = (values) => [...new Set(values.filter(Boolean))];
   const languageCode = (value) => typeof value === "string" && /^[a-z]{2}$/i.test(value) ? value.toLocaleLowerCase() : null;
-  const SEASON = "season|saison|staffel|temporada|stagione|seizoen|sezon";
-  const EPISODE = "episode|épisode|episodio|episódio|folge|aflevering|odcinek";
-  function parseEpisode(values) {
-    const text = values.filter((value) => typeof value === "string").join(" | ");
-    const patterns = [
-      /\bS\s*(\d{1,3})\s*E\s*(\d{1,4})\b/iu,
-      /\b(\d{1,3})\s*x\s*(\d{1,4})\b/iu,
-      new RegExp(`\\b(?:${SEASON})\\s*(\\d{1,3})[^\\d]{0,30}E\\s*(\\d{1,4})\\b`, "iu"),
-      new RegExp(`\\b(?:${SEASON})\\s*(\\d{1,3})[^\\d]{0,30}(?:${EPISODE})\\s*(\\d{1,4})\\b`, "iu"),
-      new RegExp(`\\b(?:${EPISODE})\\s*(\\d{1,4})[^\\d]{0,30}(?:${SEASON})\\s*(\\d{1,3})\\b`, "iu"),
-    ];
-    for (let index = 0; index < patterns.length; index++) {
-      const match = text.match(patterns[index]);
-      if (!match) continue;
-      const reverse = index === 4;
-      const season = Number(match[reverse ? 2 : 1]);
-      const episode = Number(match[reverse ? 1 : 2]);
-      if (season >= 0 && episode >= 0) return { season, episode };
-    }
-
-    const seasons = new Set();
-    const episodes = new Set();
-    const seasonPattern = new RegExp(`\\b(?:${SEASON})\\s*(\\d{1,3})\\b`, "giu");
-    const episodePattern = new RegExp(`\\b(?:(?:${EPISODE})|E)\\s*(\\d{1,4})\\b`, "giu");
-    for (const value of values.filter((item) => typeof item === "string")) {
-      for (const match of value.matchAll(seasonPattern)) seasons.add(Number(match[1]));
-      for (const match of value.matchAll(episodePattern)) episodes.add(Number(match[1]));
-    }
-    if (seasons.size === 1 && episodes.size === 1) {
-      const season = seasons.values().next().value;
-      const episode = episodes.values().next().value;
-      if (season >= 0 && episode > 0) return { season, episode };
-    }
-    return null;
-  }
-  function parseAbsoluteEpisode(values) {
-    if (parseEpisode(values)) return null;
-    const text = values.filter((value) => typeof value === "string").join(" | ");
-    const match = text.match(/\b(?:(?:episode|épisode|episodio|episódio|folge|aflevering|odcinek)\s*|E\s*)(\d{1,4})\b/iu);
-    const number = match ? Number(match[1]) : 0;
-    return Number.isInteger(number) && number > 0 ? number : null;
-  }
+  const { parseEpisode, parseAbsoluteEpisode } = MirekiEpisodeLabel;
   const resultItems = (results, type) => results.map((result) => result?.type === type ? result[type] : null)
     .filter((item) => Number.isInteger(item?.ids?.trakt) && item.ids.trakt > 0);
   const resultIds = (results, type) => unique(resultItems(results, type).map((item) => item.ids.trakt));
@@ -158,13 +119,7 @@
     function episodeTitleQueries(title) {
       const value = bounded(title);
       if (!value) return [];
-      const withoutCoordinates = value.replace(
-        /^\s*(?:S\s*\d{1,3}\s*E\s*\d{1,4}|\d{1,3}\s*x\s*\d{1,4})\s*(?:[-:–—.]\s*)?/iu, "",
-      );
-      const withoutNumber = withoutCoordinates.replace(new RegExp(
-        `^\\s*(?:(?:${EPISODE})|E)\\s*\\d{1,4}\\s*(?:[-:–—.]\\s*)?`, "iu",
-      ), "");
-      return unique([value, withoutCoordinates, withoutNumber].map(normalizeTitle));
+      return unique([value, MirekiEpisodeLabel.stripEpisodePrefix(value)].map(normalizeTitle));
     }
     function episodeTitleIds(values, title, episodeNumber, includeAbsolute = false) {
       const titles = episodeTitleQueries(title);

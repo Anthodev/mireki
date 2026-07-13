@@ -33,6 +33,8 @@ assert.equal(observe(media("bad"), { ...sender(3), id: "other" }), false, "rejec
 assert.equal(observe(media("bad"), { id: "mireki@test", frameId: 0, url: "https://site.test" }), false, "reject extension-page spoof without tab");
 assert.equal(observe(media("bad"), sender(3, 0, "file:///tmp/video")), false, "reject non-HTTPS sender");
 assert.equal(observe(media("bad"), sender(3, 0, "https://unrelated.test/watch")), false, "reject arbitrary HTTPS sender");
+assert.equal(observe(media("bad"), sender(3, 0, "https://www.disneyplus.com/video")), false,
+  "reject provider without tested manifest support");
 assert.equal(observe(media("bad"), sender(3, 0, "https://api.trakt.tv/watch")), false, "reject Trakt API origin as observation source");
 assert.equal(observe(media("bad"), { ...sender(3), url: "https://unrelated.test/embed" }), false, "reject non-provider frame inside provider tab");
 assert.equal(observe({ ...media("bad"), progress: 101 }, sender(3)), false, "reject invalid schema");

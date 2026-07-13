@@ -1,18 +1,15 @@
 (function (root, factory) {
-  const api = factory();
+  const episodeApi = root.MirekiEpisodeLabel
+    || (typeof require === "function" ? require("../shared/episode-label.js") : null);
+  const api = factory(episodeApi);
   if (typeof module === "object" && module.exports) module.exports = api;
   else root.MirekiProviderAdapter = api;
-})(globalThis, () => {
+})(globalThis, (MirekiEpisodeLabel) => {
   const PLAYER_SELECTOR = '[id^="dv-web-player"]';
   const TITLE_SELECTOR = ".atvwebplayersdk-title-text";
   const EPISODE_SELECTOR = ".atvwebplayersdk-subtitle-text, .atvwebplayersdk-episode-info";
   const ARTWORK_SELECTOR = 'main [data-automation-id="hero-background"] img';
   const METADATA_SELECTOR = `${TITLE_SELECTOR}, ${EPISODE_SELECTOR}, ${ARTWORK_SELECTOR}`;
-  const EPISODE_PATTERNS = [
-    /^(?:saison|season)\s*(\d{1,3})\s*[,.;:–—-]?\s*(?:ép(?:isode)?|ep(?:isode)?)\.?\s*(\d{1,4})(?:\s*[:;–—-]\s*|\s+)(.+)$/iu,
-    /^S\s*(\d{1,3})\s*[,.;:–—-]?\s*E\s*(\d{1,4})(?:\s*[:;–—-]\s*|\s+)(.+)$/iu,
-  ];
-
   const text = (value) => typeof value === "string" && value.trim()
     ? value.trim().replace(/\s+/g, " ").slice(0, 300) : null;
   const comparableText = (value) => text(value)?.normalize("NFKC").toLocaleLowerCase() || null;
@@ -32,16 +29,11 @@
   function parseEpisode(value) {
     const subtitle = text(value);
     if (!subtitle) return null;
-    for (const pattern of EPISODE_PATTERNS) {
-      const match = subtitle.match(pattern);
-      if (!match) continue;
-      const season = Number(match[1]);
-      const episode = Number(match[2]);
-      const title = text(match[3]);
-      if (season > 999 || episode < 1 || episode > 9999 || !title) return null;
-      return { title: text(`S${season}E${episode} - ${title}`) };
-    }
-    return null;
+    const coordinates = MirekiEpisodeLabel.findCoordinates(subtitle);
+    if (!coordinates || coordinates.index !== 0) return null;
+    const title = MirekiEpisodeLabel.stripEpisodePrefix(subtitle);
+    if (!title || title === subtitle) return null;
+    return { title: text(`S${coordinates.season}E${coordinates.episode} - ${title}`) };
   }
 
   function heroArtwork(document, artist) {

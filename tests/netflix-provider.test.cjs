@@ -100,6 +100,38 @@ assert.deepEqual(extractMetadata({
   metadata: { title: "Paint the Town Blue", artist: null },
 }), { title: "S2E4 - Paint the Town Blue", artist: "Arcane" }, "explicit coordinates enrich useful Media Session title");
 
+const conflictingCoordinates = titleElement([
+  ["Show", "H4"], ["S1E3", "SPAN"], ["S2E3", "SPAN"], ["Current title", "SPAN"],
+]);
+assert.equal(extractMetadata({
+  document: page("https://www.netflix.com/watch/81719604", conflictingCoordinates),
+  metadata: { title: "Netflix", artist: null },
+}), null, "conflicting coordinate siblings are rejected across title scope");
+
+const conflictingEpisode = titleElement([
+  ["Show", "H4"], ["S1E3", "SPAN"], ["E4", "SPAN"], ["Current title", "SPAN"],
+]);
+assert.equal(extractMetadata({
+  document: page("https://www.netflix.com/watch/81719605", conflictingEpisode),
+  metadata: { title: "Netflix", artist: null },
+}), null, "coordinate and conflicting E-only sibling are rejected");
+
+const cachedBeforeConflict = titleElement([
+  ["Show", "H4"], ["S1E3", "SPAN"], ["Current title", "SPAN"],
+]);
+assert.deepEqual(extractMetadata({
+  document: page("https://www.netflix.com/watch/81719606", cachedBeforeConflict),
+  metadata: { title: "Netflix", artist: null },
+}), { title: "S1E3 - Current title", artist: "Show" });
+assert.equal(extractMetadata({
+  document: page("https://www.netflix.com/watch/81719606", conflictingCoordinates),
+  metadata: { title: "Netflix", artist: null },
+}), null, "conflict invalidates cached coordinates for same watch ID");
+assert.equal(extractMetadata({
+  document: page("https://www.netflix.com/watch/81719606", null),
+  metadata: { title: "Netflix", artist: null },
+}), null, "invalidated coordinates are not reused after controls hide");
+
 const ambiguous = titleElement([["Show", "H4"], ["Episode title", "SPAN"]]);
 assert.deepEqual(extractMetadata({
   document: page("https://www.netflix.com/watch/900", ambiguous),
