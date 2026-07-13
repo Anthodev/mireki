@@ -1,5 +1,7 @@
 # Mireki
 
+[![Tests](https://github.com/Anthodev/mireki/actions/workflows/tests.yml/badge.svg?branch=develop)](https://github.com/Anthodev/mireki/actions/workflows/tests.yml)
+
 Build-free Firefox MV3 WebExtension for Firefox 142+. Mireki continuously observes standard HTML video/audio on explicitly supported streaming services and shows best current playback. Connected Trakt accounts receive automatic start/pause scrobbles and one watched completion at 85% when metadata resolves uniquely.
 
 ## Run in Firefox
@@ -28,7 +30,7 @@ Broker must implement `POST /v1/oauth/trakt/start`, `/exchange`, `/refresh`, and
 ## Verify
 
 ```sh
-node tests/manifest-permissions.test.cjs && node tests/trakt-client.test.cjs && node tests/trakt-matcher.test.cjs && node tests/scrobble-controller.test.cjs && node tests/trakt-auth.test.cjs && node tests/auth-background.test.cjs && node tests/options-status.test.cjs && node tests/artwork-url.test.cjs && node tests/media-snapshot.test.cjs && node tests/media-observer.test.cjs && node tests/session-store.test.cjs && node tests/background.test.cjs && node tests/popup-state.test.cjs
+node --test
 find auth background config content options playback popup services shared trakt -name '*.js' -print0 | xargs -0 -n1 node --check
 node -e "const fs=require('node:fs'); const m=JSON.parse(fs.readFileSync('manifest.json')); for(const p of [m.action.default_popup,...Object.values(m.icons),...m.background.scripts,...m.content_scripts.flatMap(x=>x.js)]) fs.accessSync(p)"
 npx --yes web-ext@10.5.0 lint --source-dir .
