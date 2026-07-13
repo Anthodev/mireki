@@ -1,6 +1,7 @@
 (function (root, factory) {
   const mediaApi = root.MirekiMedia || (typeof require === "function" ? require("../playback/media-snapshot.js") : null);
-  const api = factory(mediaApi);
+  const providerApi = root.MirekiProviderAdapter || null;
+  const api = factory(mediaApi, providerApi);
   if (typeof module === "object" && module.exports) module.exports = api;
   else {
     root.MirekiObserver = api;
@@ -10,7 +11,7 @@
       sendMessage: (message) => browser.runtime.sendMessage(message),
     }).start();
   }
-})(globalThis, (MirekiMedia) => {
+})(globalThis, (MirekiMedia, defaultProviderAdapter) => {
   const EVENTS = ["play", "pause", "ended", "durationchange", "seeking", "seeked", "emptied", "loadedmetadata", "timeupdate"];
 
   function createMediaObserver({
@@ -23,6 +24,7 @@
     clearInterval = globalThis.clearInterval,
     progressThrottleMs = 1_000,
     heartbeatMs = 10_000,
+    providerAdapter = defaultProviderAdapter,
   }) {
     const mediaElements = new Set();
     const listeners = new Map();
@@ -58,7 +60,15 @@
           title: element.getAttribute?.("aria-label") || element.getAttribute?.("title") || document.title,
         }));
       const selected = MirekiMedia.selectMedia(candidates);
-      const metadata = MirekiMedia.extractMediaSessionMetadata(navigator, document.URL);
+      const standardMetadata = {
+        ...MirekiMedia.extractMediaSessionMetadata(navigator, document.URL),
+        language: MirekiMedia.extractLanguage(document, navigator),
+      };
+      let providerMetadata = null;
+      try {
+        providerMetadata = providerAdapter?.extractMetadata?.({ document, navigator, metadata: standardMetadata }) || null;
+      } catch {}
+      const metadata = providerMetadata ? { ...standardMetadata, ...providerMetadata } : standardMetadata;
       return selected ? MirekiMedia.normalizeMedia(selected, metadata, document.URL) : null;
     }
     function emit() {
@@ -104,6 +114,7 @@
         for (const record of records) {
           for (const node of record.removedNodes) changed = visit(node, remove) || changed;
           for (const node of record.addedNodes) changed = visit(node, add) || changed;
+          try { changed = providerAdapter?.isMetadataMutation?.(record) || changed; } catch {}
         }
         if (changed) emit();
       });

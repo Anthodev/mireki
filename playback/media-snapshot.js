@@ -5,8 +5,24 @@
   else root.MirekiMedia = api;
 })(globalThis, (MirekiArtwork) => {
   const finiteNonNegative = (value) => Number.isFinite(value) && value >= 0;
+  const positiveInteger = (value) => Number.isInteger(value) && value > 0 && value <= 9999;
   const validDuration = (value) => Number.isFinite(value) && value > 0;
   const boundedText = (value) => typeof value === "string" && value.trim() ? value.trim().slice(0, 300) : null;
+  const languageCode = (value) => typeof value === "string" && /^[a-z]{2}$/i.test(value) ? value.toLocaleLowerCase() : null;
+  function extractLanguage(document, navigator) {
+    const values = [
+      document?.documentElement?.lang,
+      document?.querySelector?.('meta[http-equiv="content-language" i]')?.content,
+      navigator?.languages?.[0],
+      navigator?.language,
+    ];
+    for (const value of values) {
+      const code = typeof value === "string" ? value.match(/^([a-z]{2})(?:[-_]|$)/i)?.[1] : null;
+      if (code) return code.toLocaleLowerCase();
+    }
+    return null;
+  }
+
   const artworkArea = (sizes) => {
     const matches = typeof sizes === "string" ? [...sizes.matchAll(/(\d+)x(\d+)/g)] : [];
     return matches.reduce((largest, match) => Math.max(largest, Number(match[1]) * Number(match[2])), 0);
@@ -48,6 +64,8 @@
       title: boundedText(metadata.title) || boundedText(media.title),
       artist: boundedText(metadata.artist),
       album: boundedText(metadata.album),
+      language: languageCode(metadata.language),
+      episodeNumber: positiveInteger(metadata.episodeNumber) ? metadata.episodeNumber : null,
       artwork: MirekiArtwork.normalizeArtworkUrl(metadata.artwork, pageUrl) || MirekiArtwork.normalizeArtworkUrl(media.poster, pageUrl),
       currentTime,
       duration,
@@ -61,5 +79,5 @@
     return media ? { kind: "media", media } : { kind: "empty" };
   }
 
-  return { extractMediaSessionMetadata, normalizeMedia, selectMedia, toPopupState };
+  return { extractLanguage, extractMediaSessionMetadata, normalizeMedia, selectMedia, toPopupState };
 });

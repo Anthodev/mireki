@@ -21,7 +21,7 @@ let roots = [first];
 let mutationCallback;
 const document = {
   title: "YouTube",
-  documentElement: {},
+  documentElement: { lang: "fr-FR" },
   defaultView: { innerHeight: 800, innerWidth: 1200, getComputedStyle: () => ({}) },
   querySelectorAll: () => roots,
 };
@@ -35,21 +35,39 @@ let metadata = { title: "  Media Session title  ", artist: "Channel", album: "Se
 const navigator = { mediaSession: { get metadata() { return metadata; } } };
 let heartbeatCallback;
 let now = 0;
+let providerTitle = null;
+const providerAdapter = {
+  extractMetadata: () => providerTitle ? { title: providerTitle, artist: "Provider series" } : null,
+  isMetadataMutation: (record) => record.providerMetadata === true,
+};
 const observer = createMediaObserver({
   document, navigator, MutationObserver: FakeMutationObserver,
   sendMessage: (message) => messages.push(message), now: () => now,
   setInterval: (callback) => { heartbeatCallback = callback; return 1; }, clearInterval: () => {},
+  providerAdapter,
 }).start();
 assert.equal(messages.at(-1).media.title, "Media Session title");
 assert.equal(messages.at(-1).media.artist, "Channel");
 assert.equal(messages.at(-1).media.album, "Series");
+assert.equal(messages.at(-1).media.language, "fr", "page language is provider-neutral metadata");
 
+metadata = { title: "Netflix" };
+providerTitle = "S1E2 - Provider episode";
+const beforeProviderMutation = messages.length;
+mutationCallback([{ target: {}, removedNodes: [], addedNodes: [], providerMetadata: true }]);
+assert.equal(messages.length, beforeProviderMutation + 1, "provider metadata mutation emits immediately");
+assert.equal(messages.at(-1).media.title, "S1E2 - Provider episode");
+assert.equal(messages.at(-1).media.artist, "Provider series");
+metadata = { title: "  Media Session title  ", artist: "Channel", album: "Series" };
+providerTitle = null;
+
+const beforeTimeupdates = messages.length;
 first.fire("timeupdate");
 first.fire("timeupdate");
-assert.equal(messages.length, 2, "timeupdate is throttled");
+assert.equal(messages.length, beforeTimeupdates + 1, "timeupdate is throttled");
 now = 1_000;
 first.fire("timeupdate");
-assert.equal(messages.length, 3);
+assert.equal(messages.length, beforeTimeupdates + 2);
 
 const replacement = element("YouTube replacement");
 metadata = null;

@@ -47,14 +47,17 @@ const status = (title, progress, state, tabId = 1, frameId = 0, extra = {}) => (
   const negative = createScrobbleController({ matcher: { async match() { attempts++; return { status: "unmatched" }; } }, client, isConnected: async () => true, storage: { async get(){return{};},async set(){} }, now: () => time });
   await negative.handle(status("Missing", 10, "playing", 3, 0, { duration: 100 }));
   const cosmeticChange = status("Missing", 20, "playing", 4, 0, { duration: 200 });
-  cosmeticChange.source.pageTitle = "Changing page title";
   await negative.handle(cosmeticChange);
-  assert.equal(attempts, 1, "page title, source, and duration changes cannot bypass negative cooldown");
+  assert.equal(attempts, 1, "source and duration changes cannot bypass negative cooldown");
+  const seasonPage = status("Missing", 20, "playing", 4, 0, { duration: 200 });
+  seasonPage.source.pageTitle = "Saison 3 | E3 - Episode title";
+  await negative.handle(seasonPage);
+  assert.equal(attempts, 2, "season-bearing page title retries immediately");
   await negative.handle(status("Changed", 20, "playing", 4));
-  assert.equal(attempts, 2, "title change retries immediately");
+  assert.equal(attempts, 3, "title change retries immediately");
   time += NEGATIVE_TTL + 1;
   await negative.handle(status("Missing", 30, "playing", 4));
-  assert.equal(attempts, 3, "deterministic result retries after cooldown");
+  assert.equal(attempts, 4, "deterministic result retries after cooldown");
 
   let pageMatches = 0;
   const pageAware = createScrobbleController({ matcher: { async match({ pageTitle }) { pageMatches++; const id = pageTitle === "Episode 2" ? 2 : 1; return { status: "matched", key: `episode:${id}`, item: { type: "episode", traktId: id } }; } }, client, isConnected: async () => true, storage: { async get(){return{};},async set(){} } });

@@ -14,6 +14,10 @@ const client = createTraktClient({ clientId: "public", getAccessToken: async () 
   response = { ok: true, status: 200, headers: { get: () => null }, json: async () => [{ number: 5, episodes: [] }] };
   assert.equal((await client.seasons(20))[0].number, 5);
   assert.match(requests.at(-1).url, /\/shows\/20\/seasons\?extended=episodes,full$/);
+  response = { ok: true, status: 200, headers: { get: () => null }, json: async () => [{ season: 1, number: 1, translations: [] }] };
+  assert.equal((await client.seasonEpisodes(20, 1, "FR"))[0].number, 1);
+  assert.match(requests.at(-1).url, /\/shows\/20\/seasons\/1\?extended=full&translations=fr$/);
+  await assert.rejects(() => client.seasonEpisodes(20, 1, "fr-FR"), /Invalid translated season identity/);
   response = { ok: true, status: 200, headers: { get: () => null }, json: async () => ({ season: 1, number: 3, ids: { trakt: 99 } }) };
   assert.equal((await client.episode(20, 1, 3)).ids.trakt, 99);
   response = { ok: true, status: 200, headers: { get: () => null }, json: async () => ({ season: 2, number: 3, ids: { trakt: 99 } }) };

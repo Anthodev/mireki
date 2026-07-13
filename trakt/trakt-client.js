@@ -61,6 +61,12 @@
       const value = await request(`/shows/${showId}/seasons?extended=episodes,full`);
       return Array.isArray(value) ? value.slice(0, 200) : [];
     }
+    async function seasonEpisodes(showId, season, language) {
+      if (!integer(showId) || !Number.isInteger(season) || season < 0
+        || typeof language !== "string" || !/^[a-z]{2}$/i.test(language)) throw new Error("Invalid translated season identity");
+      const value = await request(`/shows/${showId}/seasons/${season}?extended=full&translations=${language.toLocaleLowerCase()}`);
+      return Array.isArray(value) ? value.slice(0, 500) : [];
+    }
     async function scrobble(action, item, progress) {
       if (!new Set(["start", "pause", "stop"]).has(action) || !progressValue(progress)
         || !item || !new Set(["movie", "episode"]).has(item.type) || !integer(item.traktId)) throw new Error("Invalid scrobble");
@@ -73,7 +79,7 @@
       if (value.action !== expected) throw new TraktApiError(502);
       return value;
     }
-    return { searchExact, searchShows, episode, seasons, scrobble };
+    return { searchExact, searchShows, episode, seasons, seasonEpisodes, scrobble };
   }
   return { API_URL, TraktApiError, createTraktClient };
 });

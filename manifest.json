@@ -1,18 +1,14 @@
 {
   "manifest_version": 3,
   "name": "Mireki",
-  "version": "0.7.0",
+  "version": "0.8.2",
   "description": "Displays current media playback and enables Trakt scrobbling.",
   "browser_specific_settings": {
     "gecko": {
       "id": "mireki@antho.dev",
       "strict_min_version": "142.0",
       "data_collection_permissions": {
-        "required": [
-          "authenticationInfo",
-          "websiteActivity",
-          "websiteContent"
-        ]
+        "required": ["authenticationInfo", "websiteActivity", "websiteContent"]
       }
     }
   },
@@ -54,7 +50,6 @@
         "https://*.hbomax.com/*",
         "https://*.hulu.com/*",
         "https://*.max.com/*",
-        "https://*.netflix.com/*",
         "https://*.paramountplus.com/*",
         "https://*.peacocktv.com/*",
         "https://*.primevideo.com/*",
@@ -64,6 +59,16 @@
       "js": [
         "shared/artwork-url.js",
         "playback/media-snapshot.js",
+        "content/media-observer.js"
+      ]
+    },
+    {
+      "matches": ["https://*.netflix.com/*"],
+      "all_frames": true,
+      "js": [
+        "shared/artwork-url.js",
+        "playback/media-snapshot.js",
+        "providers/netflix.js",
         "content/media-observer.js"
       ]
     }
@@ -84,11 +89,7 @@
   "content_security_policy": {
     "extension_pages": "script-src 'self'; img-src 'self' https:; connect-src https:; object-src 'none'"
   },
-  "permissions": [
-    "identity",
-    "storage",
-    "alarms"
-  ],
+  "permissions": ["identity", "storage", "alarms"],
   "options_ui": {
     "page": "options/options.html",
     "open_in_tab": true

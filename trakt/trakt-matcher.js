@@ -5,6 +5,7 @@
 })(globalThis, () => {
   const bounded = (value) => typeof value === "string" && value.trim() ? value.trim().slice(0, 300) : null;
   const unique = (values) => [...new Set(values.filter(Boolean))];
+  const languageCode = (value) => typeof value === "string" && /^[a-z]{2}$/i.test(value) ? value.toLocaleLowerCase() : null;
   const SEASON = "season|saison|staffel|temporada|stagione|seizoen|sezon";
   const EPISODE = "episode|épisode|episodio|episódio|folge|aflevering|odcinek";
   function parseEpisode(values) {
@@ -12,16 +13,31 @@
     const patterns = [
       /\bS\s*(\d{1,3})\s*E\s*(\d{1,4})\b/iu,
       /\b(\d{1,3})\s*x\s*(\d{1,4})\b/iu,
+      new RegExp(`\\b(?:${SEASON})\\s*(\\d{1,3})[^\\d]{0,30}E\\s*(\\d{1,4})\\b`, "iu"),
       new RegExp(`\\b(?:${SEASON})\\s*(\\d{1,3})[^\\d]{0,30}(?:${EPISODE})\\s*(\\d{1,4})\\b`, "iu"),
       new RegExp(`\\b(?:${EPISODE})\\s*(\\d{1,4})[^\\d]{0,30}(?:${SEASON})\\s*(\\d{1,3})\\b`, "iu"),
     ];
     for (let index = 0; index < patterns.length; index++) {
       const match = text.match(patterns[index]);
       if (!match) continue;
-      const reverse = index === 3;
+      const reverse = index === 4;
       const season = Number(match[reverse ? 2 : 1]);
       const episode = Number(match[reverse ? 1 : 2]);
       if (season >= 0 && episode >= 0) return { season, episode };
+    }
+
+    const seasons = new Set();
+    const episodes = new Set();
+    const seasonPattern = new RegExp(`\\b(?:${SEASON})\\s*(\\d{1,3})\\b`, "giu");
+    const episodePattern = new RegExp(`\\b(?:(?:${EPISODE})|E)\\s*(\\d{1,4})\\b`, "giu");
+    for (const value of values.filter((item) => typeof item === "string")) {
+      for (const match of value.matchAll(seasonPattern)) seasons.add(Number(match[1]));
+      for (const match of value.matchAll(episodePattern)) episodes.add(Number(match[1]));
+    }
+    if (seasons.size === 1 && episodes.size === 1) {
+      const season = seasons.values().next().value;
+      const episode = episodes.values().next().value;
+      if (season >= 0 && episode > 0) return { season, episode };
     }
     return null;
   }
@@ -53,6 +69,12 @@
     return edits + Number(leftIndex < left.length || rightIndex < right.length) <= 1;
   }
   const nearTitle = (query, item) => withinOneEdit(normalizeTitle(query), normalizeTitle(item?.title));
+  function showSearchQueries(query) {
+    const value = bounded(query);
+    if (!value) return [];
+    const prefix = value.match(/^(.+?)(?::\s*|\s+[-–—]\s*)\S/u)?.[1]?.trim();
+    return unique([value, prefix && normalizeTitle(prefix).length >= 3 ? prefix : null]);
+  }
   function runtimeMatches(duration, runtime) {
     if (!Number.isFinite(duration) || duration <= 0 || !Number.isFinite(runtime) || runtime <= 0) return false;
     const minutes = duration / 60;
@@ -60,25 +82,114 @@
   }
   function createTraktMatcher(client) {
     const episodeCache = new Map();
+    const translatedEpisodeCache = new Map();
+    function episodeValues(seasons) {
+      const values = [];
+      for (const season of Array.isArray(seasons) ? seasons : []) {
+        for (const episode of Array.isArray(season?.episodes) ? season.episodes : []) {
+          if (values.length >= 5000) return values;
+          const traktId = episode?.ids?.trakt;
+          if (!Number.isInteger(traktId) || traktId <= 0) continue;
+          values.push({
+            numberAbs: Number.isInteger(episode.number_abs) && episode.number_abs > 0 ? episode.number_abs : null,
+            season: Number.isInteger(episode.season) && episode.season >= 0 ? episode.season
+              : Number.isInteger(season?.number) && season.number >= 0 ? season.number : null,
+            number: Number.isInteger(episode.number) && episode.number > 0 ? episode.number : null,
+            traktId,
+            titles: unique([episode.title, episode.original_title].map(normalizeTitle)),
+            translationLanguages: unique((Array.isArray(episode.available_translations)
+              ? episode.available_translations : []).map(languageCode)),
+          });
+        }
+      }
+      return values;
+    }
     async function episodes(showId) {
       if (!episodeCache.has(showId)) {
         if (episodeCache.size >= 20) episodeCache.delete(episodeCache.keys().next().value);
-        const pending = client.seasons(showId).then((seasons) => {
-          const values = [];
-          for (const season of Array.isArray(seasons) ? seasons : []) {
-            for (const episode of Array.isArray(season?.episodes) ? season.episodes : []) {
-              if (values.length >= 5000) return values;
-              if (Number.isInteger(episode?.number_abs) && episode.number_abs > 0
-                && Number.isInteger(episode?.ids?.trakt) && episode.ids.trakt > 0) {
-                values.push({ numberAbs: episode.number_abs, traktId: episode.ids.trakt });
-              }
-            }
-          }
-          return values;
-        }).catch((error) => { episodeCache.delete(showId); throw error; });
+        const pending = client.seasons(showId).then(episodeValues)
+          .catch((error) => { episodeCache.delete(showId); throw error; });
         episodeCache.set(showId, pending);
       }
       return episodeCache.get(showId);
+    }
+    async function translatedEpisodes(showId, language) {
+      const code = languageCode(language);
+      if (!code || typeof client.seasonEpisodes !== "function") return [];
+      const key = `${showId}:${code}`;
+      if (!translatedEpisodeCache.has(key)) {
+        if (translatedEpisodeCache.size >= 40) translatedEpisodeCache.delete(translatedEpisodeCache.keys().next().value);
+        const pending = episodes(showId).then(async (canonical) => {
+          const translatedSeasonNumbers = canonical.filter((episode) => episode.season !== null
+            && episode.translationLanguages.includes(code)).map((episode) => episode.season);
+          const seasonNumbers = [...new Set((translatedSeasonNumbers.length ? translatedSeasonNumbers
+            : canonical.filter((episode) => episode.season !== null).map((episode) => episode.season)))].slice(0, 50);
+          const values = [];
+          for (const season of seasonNumbers) {
+            let translated;
+            try { translated = await client.seasonEpisodes(showId, season, code); } catch (error) {
+              if (error?.status === 404) continue;
+              throw error;
+            }
+            for (const episode of Array.isArray(translated) ? translated : []) {
+              if (values.length >= 5000) return values;
+              const traktId = episode?.ids?.trakt;
+              if (!Number.isInteger(traktId) || traktId <= 0) continue;
+              const translations = Array.isArray(episode.translations) ? episode.translations
+                .filter((item) => languageCode(item?.language) === code) : [];
+              values.push({
+                traktId,
+                number: Number.isInteger(episode.number) && episode.number > 0 ? episode.number : null,
+                numberAbs: Number.isInteger(episode.number_abs) && episode.number_abs > 0
+                  ? episode.number_abs : null,
+                titles: unique([episode.title, episode.original_title,
+                  ...translations.map((item) => item.title)].map(normalizeTitle)),
+              });
+            }
+          }
+          return values;
+        }).catch((error) => { translatedEpisodeCache.delete(key); throw error; });
+        translatedEpisodeCache.set(key, pending);
+      }
+      return translatedEpisodeCache.get(key);
+    }
+    function episodeTitleQueries(title) {
+      const value = bounded(title);
+      if (!value) return [];
+      const withoutNumber = value.replace(new RegExp(
+        `^\\s*(?:(?:${EPISODE})|E)\\s*\\d{1,4}\\s*(?:[-:–—.]\\s*)?`, "iu",
+      ), "");
+      return unique([value, withoutNumber].map(normalizeTitle));
+    }
+    function episodeTitleIds(values, title, episodeNumber, includeAbsolute = false) {
+      const titles = episodeTitleQueries(title);
+      const number = Number.isInteger(episodeNumber) && episodeNumber > 0 ? episodeNumber : null;
+      return titles.length ? unique(values.filter((episode) => titles.some((titleValue) => episode.titles.includes(titleValue))
+        && (number === null || episode.number === number || includeAbsolute && episode.numberAbs === number))
+        .map((episode) => episode.traktId)) : [];
+    }
+    const matchedEpisode = (traktId) => ({ status: "matched", key: `episode:${traktId}`, item: { type: "episode", traktId } });
+    async function episodeTitleIdsForShow(showId, title, language, episodeNumber, includeAbsolute = false) {
+      let traktIds = episodeTitleIds(await episodes(showId), title, episodeNumber, includeAbsolute);
+      if (!traktIds.length && languageCode(language)) {
+        traktIds = episodeTitleIds(
+          await translatedEpisodes(showId, language), title, episodeNumber, includeAbsolute,
+        );
+      }
+      return traktIds;
+    }
+    async function episodeTitleIdsForShows(showIds, title, language, episodeNumber, includeAbsolute = false) {
+      const values = [];
+      for (const showId of showIds) {
+        try {
+          values.push(...await episodeTitleIdsForShow(
+            showId, title, language, episodeNumber, includeAbsolute,
+          ));
+        } catch (error) {
+          if (error?.status !== 404) throw error;
+        }
+      }
+      return unique(values);
     }
     async function exactIds(type, queries) {
       const ids = [];
@@ -92,13 +203,16 @@
         const exact = resultIds(exactResults, "show");
         if (exact.length === 1) { ids.push(exact[0]); continue; }
         if (exact.length > 1) {
-          const narrowed = unique(resultItems(exactResults, "show").filter((item) => nearTitle(query, item)).map((item) => item.ids.trakt));
-          ids.push(...(narrowed.length === 1 ? narrowed : exact));
+          ids.push(...exact);
           continue;
         }
-        const nearby = unique(resultItems(await client.searchShows(query), "show")
-          .filter((item) => nearTitle(query, item)).map((item) => item.ids.trakt));
-        ids.push(...nearby);
+        const nearby = [];
+        for (const searchQuery of showSearchQueries(query)) {
+          nearby.push(...resultItems(await client.searchShows(searchQuery), "show")
+            .filter((item) => nearTitle(query, item)).map((item) => item.ids.trakt));
+          if (nearby.length) break;
+        }
+        ids.push(...unique(nearby));
       }
       return unique(ids);
     }
@@ -108,32 +222,47 @@
       const absoluteEpisode = parseAbsoluteEpisode(metadata);
       const showQueries = unique([media.album, media.artist].map(bounded));
       const showIds = showQueries.length ? await exactShowIds(showQueries) : [];
-      if (showIds.length > 1) return { status: "ambiguous" };
       if (coordinates) {
-        if (showIds.length !== 1) return { status: showIds.length ? "ambiguous" : "unmatched" };
-        try {
-          const value = await client.episode(showIds[0], coordinates.season, coordinates.episode);
-          const traktId = value?.ids?.trakt;
-          if (!Number.isInteger(traktId) || traktId <= 0) return { status: "unmatched" };
-          return { status: "matched", key: `episode:${traktId}`, item: { type: "episode", traktId } };
-        } catch (error) {
-          if (error?.status === 404) return { status: "unmatched" };
-          throw error;
+        if (!showIds.length) return { status: "unmatched" };
+        if (showIds.length > 3) return { status: "ambiguous" };
+        const coordinateMatches = [];
+        for (const showId of showIds) {
+          try {
+            const value = await client.episode(showId, coordinates.season, coordinates.episode);
+            const traktId = value?.ids?.trakt;
+            if (Number.isInteger(traktId) && traktId > 0) coordinateMatches.push(traktId);
+          } catch (error) {
+            if (error?.status !== 404) throw error;
+          }
         }
+        const traktIds = unique(coordinateMatches);
+        return traktIds.length === 1 ? matchedEpisode(traktIds[0])
+          : { status: traktIds.length > 1 ? "ambiguous" : "unmatched" };
       }
       if (absoluteEpisode) {
-        if (showIds.length !== 1) return { status: showIds.length ? "ambiguous" : "unmatched" };
-        try {
-          const matches = (await episodes(showIds[0])).filter((episode) => episode.numberAbs === absoluteEpisode);
-          const traktIds = unique(matches.map((episode) => episode.traktId));
-          if (traktIds.length !== 1) return { status: traktIds.length > 1 ? "ambiguous" : "unmatched" };
-          return { status: "matched", key: `episode:${traktIds[0]}`, item: { type: "episode", traktId: traktIds[0] } };
-        } catch (error) {
-          if (error?.status === 404) return { status: "unmatched" };
-          throw error;
+        if (!showIds.length) return { status: "unmatched" };
+        if (showIds.length > 3) return { status: "ambiguous" };
+        let traktIds = await episodeTitleIdsForShows(
+          showIds, media.title, media.language, absoluteEpisode, true,
+        );
+        if (!traktIds.length) {
+          traktIds = await episodeTitleIdsForShows(showIds, media.title, media.language, null);
         }
+        return traktIds.length === 1 ? matchedEpisode(traktIds[0])
+          : { status: traktIds.length > 1 ? "ambiguous" : "unmatched" };
       }
-      if (showIds.length === 1) return { status: "needsEpisode" };
+      if (showIds.length) {
+        if (showIds.length > 3) return { status: "ambiguous" };
+        let traktIds = await episodeTitleIdsForShows(
+          showIds, media.title, media.language, media.episodeNumber,
+        );
+        if (!traktIds.length && media.episodeNumber) {
+          traktIds = await episodeTitleIdsForShows(showIds, media.title, media.language, null);
+        }
+        if (traktIds.length === 1) return matchedEpisode(traktIds[0]);
+        if (traktIds.length > 1 || showIds.length > 1) return { status: "ambiguous" };
+        return { status: "needsEpisode" };
+      }
       const title = bounded(media.title);
       const distinctShowHints = showQueries.filter((value) => value.toLocaleLowerCase() !== title?.toLocaleLowerCase());
       if (distinctShowHints.length || !Number.isFinite(media.duration) || media.duration < 60 * 60) return { status: "unmatched" };

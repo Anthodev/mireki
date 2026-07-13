@@ -38,6 +38,11 @@ assert.equal(observe(media("bad"), { ...sender(3), url: "https://unrelated.test/
 assert.equal(observe({ ...media("bad"), progress: 101 }, sender(3)), false, "reject invalid schema");
 assert.equal(observe({ ...media("bad"), artist: "x".repeat(301) }, sender(3)), false, "reject oversized artist");
 assert.equal(observe({ ...media("bad"), album: 42 }, sender(3)), false, "reject non-string album");
+assert.equal(observe({ ...media("bad"), language: "fr-FR" }, sender(3)), false, "reject invalid provider language");
+assert.equal(observe({ ...media("bad"), episodeNumber: 0 }, sender(3)), false, "reject invalid episode number hint");
+assert.equal(observe({ ...media("bad"), episodeNumber: 10000 }, sender(3)), false, "reject oversized episode number hint");
+assert.equal(observe({ ...media("valid language"), language: "fr" }, sender(3)), true, "accept bounded two-letter provider language");
+assert.equal(observe(null, sender(3)), true, "language validation fixture does not affect selection tests");
 
 assert.equal(observe(null, sender(1, 2)), true, "explicit empty removes frame");
 assert.equal(observe(null, sender(2, 3)), true, "explicit empty removes selected frame");

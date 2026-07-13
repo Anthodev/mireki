@@ -1,6 +1,7 @@
 const assert = require("node:assert/strict");
 const {
   normalizeMedia,
+  extractLanguage,
   extractMediaSessionMetadata,
   selectMedia,
   toPopupState,
@@ -44,12 +45,20 @@ assert.equal(selectMedia([
 ]).title, "offscreen-video");
 
 assert.deepEqual(normalizeMedia(media()), {
-  kind: "video", title: "Episode 1", artist: null, album: null, artwork: null,
+  kind: "video", title: "Episode 1", artist: null, album: null, language: null, episodeNumber: null, artwork: null,
   currentTime: 30, duration: 120, state: "paused", progress: 25,
 });
+assert.equal(extractLanguage({ documentElement: { lang: "fr-FR" } }, { language: "en-US" }), "fr");
+assert.equal(extractLanguage({ documentElement: { lang: "" } }, { languages: ["de-DE"], language: "en-US" }), "de");
+assert.equal(extractLanguage({ documentElement: { lang: "invalid" } }, {}), null);
+
 assert.deepEqual(extractMediaSessionMetadata({ mediaSession: { metadata: {
   title: "  Session title  ", artist: "  Channel  ", album: "  Series  ",
 } } }), { title: "Session title", artist: "Channel", album: "Series", artwork: null });
+assert.equal(extractLanguage({ documentElement: { lang: "fr-FR" } }, { language: "en-US" }), "fr");
+assert.equal(extractLanguage({ documentElement: { lang: "" } }, { languages: ["de-DE"], language: "en-US" }), "de");
+assert.equal(extractLanguage({ documentElement: { lang: "invalid" } }, {}), null);
+
 assert.deepEqual(extractMediaSessionMetadata({ mediaSession: { metadata: {
   title: " ", artist: 42, album: null,
 } } }), { title: null, artist: null, album: null, artwork: null });
@@ -68,6 +77,10 @@ assert.equal(normalizeMedia(media({ duration: Infinity })).progress, null);
 assert.equal(normalizeMedia(media({ currentTime: 108, duration: 120 })).progress, 90);
 assert.equal("watched" in normalizeMedia(media({ currentTime: 102, duration: 120 })), false,
   "snapshot normalization stays independent from 90% completion policy");
+assert.equal(normalizeMedia(media(), { language: "FR" }).language, "fr");
+assert.equal(normalizeMedia(media(), { language: "fr-FR" }).language, null);
+assert.equal(normalizeMedia(media(), { episodeNumber: 12 }).episodeNumber, 12);
+assert.equal(normalizeMedia(media(), { episodeNumber: 0 }).episodeNumber, null);
 assert.equal(normalizeMedia(media({ paused: false })).state, "playing");
 assert.equal(normalizeMedia(media({ ended: true })).state, "ended");
 

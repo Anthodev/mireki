@@ -16,7 +16,15 @@ const expected = [
   "https://tv.apple.com/*",
 ];
 assert.deepEqual(manifest.host_permissions, [...expected, "https://api.trakt.tv/*"]);
-assert.deepEqual(manifest.content_scripts[0].matches, expected);
+const observedMatches = manifest.content_scripts.flatMap((entry) => entry.matches);
+assert.deepEqual([...observedMatches].sort(), [...expected].sort());
+assert.equal(new Set(observedMatches).size, expected.length, "provider matches are declared exactly once");
+assert.ok(manifest.content_scripts.every((entry) => entry.all_frames === true));
+const netflixScript = manifest.content_scripts.find((entry) => entry.matches.includes("https://*.netflix.com/*"));
+assert.deepEqual(netflixScript.matches, ["https://*.netflix.com/*"]);
+assert.ok(netflixScript.js.includes("providers/netflix.js"), "Netflix adapter loads on Netflix");
+assert.ok(manifest.content_scripts.filter((entry) => entry !== netflixScript)
+  .every((entry) => !entry.js.includes("providers/netflix.js")), "Netflix adapter stays isolated from other providers");
 assert.ok(manifest.permissions.includes("alarms"), "one-shot alarm expires stale scrobble state while popup is closed");
 assert.deepEqual(PROVIDER_HOSTS, expected.filter((pattern) => pattern.includes("*.")).map((pattern) => new URL(pattern.replace("*.", "www.")).hostname.slice(4)), "runtime provider allowlist stays synchronized");
 assert.equal(expected.some((pattern) => pattern.includes("<all_urls>") || pattern.startsWith("http://") || pattern === "https://*/*"), false);

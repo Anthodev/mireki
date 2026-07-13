@@ -42,13 +42,15 @@ Mireki can observe standard media playback on:
 - Peacock
 - Prime Video
 
-Provider support depends on metadata exposed by each website and by Firefox. Crunchyroll is the primary development target; other services use the same provider-neutral media observer and may need additional real-world validation.
+Provider support depends on metadata exposed by each website and by Firefox. Netflix includes a dedicated fallback for series and episode labels when Firefox only exposes a generic Netflix title. Other services use the same provider-neutral media observer and may need additional real-world validation.
 
 ## Trakt scrobbling
 
 Connect Trakt from **Firefox Add-ons → Mireki → Preferences**. Once connected, Mireki resolves the selected media and sends meaningful playback transitions rather than an update every second.
 
-Mireki deliberately leaves media as **Unmatched**, **Ambiguous**, or **Episode unknown** when metadata is insufficient. It never silently invents a season or chooses between multiple candidates.
+> **Best-effort scrobbling:** Streaming services, players, and exposed metadata change over time. Mireki cannot guarantee detection, matching, or scrobbling for every movie, series, episode, language, or provider. When information is missing or uncertain, it prefers not to scrobble rather than report the wrong media.
+
+Mireki can resolve an episode from a unique canonical or translated title within the matched series, using the within-season episode number as an additional hint when a service exposes it. It deliberately leaves media as **Unmatched**, **Ambiguous**, or **Episode unknown** when metadata is insufficient, and never silently invents a season or chooses between multiple candidates.
 
 ## Privacy and permissions
 

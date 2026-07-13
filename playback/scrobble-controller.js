@@ -10,8 +10,10 @@
   const validCompleted = (value) => value && typeof value === "object" && !Array.isArray(value);
   const sourceKey = (source) => `${source?.tabId}:${source?.frameId}`;
   const normalizedIdentity = (values) => values.map((value) => value?.normalize("NFKC").trim().toLocaleLowerCase() || "").join("\u0000");
-  const mediaIdentity = (media) => normalizedIdentity([media?.title, media?.artist, media?.album]);
-  const matchIdentity = (status) => normalizedIdentity([status.media?.title, status.media?.artist, status.media?.album, status.source?.pageTitle]);
+  const matchIdentity = (status) => normalizedIdentity([
+    status.media?.title, status.media?.artist, status.media?.album, status.media?.language,
+    String(status.media?.episodeNumber || ""), status.source?.pageTitle,
+  ]);
 
   function createScrobbleController({ matcher, client, isConnected, storage, onUnauthorized = async () => {}, now = Date.now }) {
     const negative = new Map();
@@ -67,8 +69,8 @@
       await pausePrevious(nextKey);
       if (status.kind !== "media") { selected = null; return; }
       const media = status.media;
-      const cooldownKey = mediaIdentity(media);
       const fingerprint = matchIdentity(status);
+      const cooldownKey = fingerprint;
       if (!selected || selected.key !== nextKey || selected.identity !== fingerprint) {
         await pausePrevious(null);
         selected = { key: nextKey, identity: fingerprint, status: "matching", match: null, lastPlayback: null, progress: media.progress, retryAt: 0 };
