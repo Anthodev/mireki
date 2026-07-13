@@ -16,7 +16,14 @@ body { width: 22rem; margin: 0; background: var(--bg); color: var(--text); }
 main { padding: .75rem; }
 .message { margin: 0; padding: 1.25rem; border-radius: .75rem; background: var(--surface); color: var(--muted); text-align: center; line-height: 1.45; }
 .media-card { margin-top: 0; overflow: hidden; border-radius: .85rem; background: var(--surface); }
-.hero { position: relative; min-height: 12.5rem; overflow: hidden; background: #34313f; }
+.hero {
+  position: relative;
+  min-height: 12.5rem;
+  overflow: hidden;
+  background:
+    url("../icons/mireki.svg") center 42% / 5.5rem no-repeat,
+    radial-gradient(circle at 50% 38%, #3a355e 0, #18162d 65%);
+}
 #media-artwork { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
 .scrim { position: absolute; inset: 0; background: linear-gradient(to bottom, rgba(10,10,14,.05) 15%, rgba(10,10,14,.9) 100%); }
 .identity { position: absolute; inset: auto 1rem 1rem; color: #fff; }
