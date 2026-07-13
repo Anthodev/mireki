@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Mireki",
-  "version": "0.8.3",
+  "version": "0.8.4",
   "description": "Displays current media playback and enables Trakt scrobbling.",
   "browser_specific_settings": {
     "gecko": {
@@ -52,13 +52,22 @@
         "https://*.max.com/*",
         "https://*.paramountplus.com/*",
         "https://*.peacocktv.com/*",
-        "https://*.primevideo.com/*",
         "https://tv.apple.com/*"
       ],
       "all_frames": true,
       "js": [
         "shared/artwork-url.js",
         "playback/media-snapshot.js",
+        "content/media-observer.js"
+      ]
+    },
+    {
+      "matches": ["https://*.primevideo.com/*"],
+      "all_frames": true,
+      "js": [
+        "shared/artwork-url.js",
+        "playback/media-snapshot.js",
+        "providers/prime-video.js",
         "content/media-observer.js"
       ]
     },

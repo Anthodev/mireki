@@ -208,6 +208,95 @@ const result = (type, id, runtime = 100) => ({ type, [type]: { title: "Canonical
   })).item.traktId, 103, "translated title matching supports any Trakt two-letter language");
   assert.equal(requestedLanguage, "es");
 
+  const ghostExactShows = [
+    { type: "show", show: { title: "Ghost in the Shell: Stand Alone Complex", ids: { trakt: 1090 } } },
+    { type: "show", show: { title: "Ghost in the Shell: Arise - Alternative Architecture", ids: { trakt: 97286 } } },
+    { type: "show", show: { title: "Ghost in the Shell: SAC_2045", ids: { trakt: 154401 } } },
+  ];
+  const ghostEpisodeRequests = [];
+  const ghostBroadQueries = [];
+  const ghostInTheShell = createTraktMatcher({
+    async searchExact(type, query) {
+      return type === "show" && query === "THE GHOST IN THE SHELL" ? ghostExactShows : [];
+    },
+    async searchShows(query) {
+      ghostBroadQueries.push(query);
+      return [
+        { type: "show", show: { title: "THE GHOST IN THE SHELL", ids: { trakt: 241679 } } },
+        ...ghostExactShows,
+      ];
+    },
+    async episode(showId, season, number) {
+      ghostEpisodeRequests.push({ showId, season, number });
+      return { season, number, ids: { trakt: 241680 } };
+    },
+  });
+  assert.deepEqual(await ghostInTheShell.match({
+    media: {
+      title: "S1E1 - ÉPISODE 01 : PROLOGUE + SUPER SPARTAN i THE GHOST IN THE SHELL",
+      artist: "THE GHOST IN THE SHELL", album: null, language: "fr",
+    },
+    pageTitle: "Prime Video: THE GHOST IN THE SHELL - Saison 1",
+  }), { status: "matched", key: "episode:241680", item: { type: "episode", traktId: 241680 } },
+  "broad canonical result replaces incomplete exact alias results");
+  assert.deepEqual(ghostBroadQueries, ["THE GHOST IN THE SHELL"]);
+  assert.deepEqual(ghostEpisodeRequests, [{ showId: 241679, season: 1, number: 1 }],
+    "legacy exact-search candidates are not queried when broad search recovers direct canonical show");
+
+  const falloutShows = [
+    { type: "show", show: { title: "Fallout", year: 2024, ids: { trakt: 163965 } } },
+    { type: "show", show: { title: "Operation Buffalo", year: 2020, ids: { trakt: 161803 } } },
+    { type: "show", show: { title: "Thirst Trap: The Fame. The Fantasy. The Fallout.", year: 2025, ids: { trakt: 295633 } } },
+  ];
+  const falloutEpisodes = {
+    163965: { season: 1, number: 1, title: "The End", ids: { trakt: 4724475 } },
+    161803: { season: 1, number: 1, title: "Episode 1", ids: { trakt: 4156663 } },
+    295633: { season: 1, number: 1, title: "The Rise of a TikTok Heartthrob", ids: { trakt: 13434338 } },
+  };
+  const falloutTranslationLoads = [];
+  const fallout = createTraktMatcher({
+    async searchExact(type, query) {
+      return type === "show" && query === "Fallout" ? falloutShows : [];
+    },
+    async searchShows() { throw new Error("canonical exact candidate must keep alias candidates"); },
+    async episode(showId, season, number) {
+      return { ...falloutEpisodes[showId], season, number };
+    },
+    async seasons(showId) {
+      if (showId !== 163965) return [{ number: 1, episodes: [falloutEpisodes[showId]] }];
+      return [
+        { number: 0, episodes: [{
+          season: 0, number: 1, title: "Special", available_translations: ["fr"], ids: { trakt: 4724474 },
+        }] },
+        { number: 1, episodes: [falloutEpisodes[showId]] },
+      ];
+    },
+    async seasonEpisodes(showId, season, language) {
+      falloutTranslationLoads.push({ showId, season, language });
+      if (showId !== 163965 || season !== 1 || language !== "fr") return [];
+      return [{
+        ...falloutEpisodes[showId],
+        translations: [{ title: "La Fin", language: "fr", country: "fr" }],
+      }];
+    },
+  });
+  assert.deepEqual(await fallout.match({
+    media: { title: "S1E1 - The End", artist: "Fallout", album: null, language: "en" },
+    pageTitle: "Prime Video: Fallout - Season 1",
+  }), { status: "matched", key: "episode:4724475", item: { type: "episode", traktId: 4724475 } },
+  "exact episode title disambiguates identical coordinates across exact show candidates");
+  assert.deepEqual(await fallout.match({
+    media: { title: "S1E1 - La Fin", artist: "Fallout", album: null, language: "fr" },
+    pageTitle: "Prime Video: Fallout - Saison 1",
+  }), { status: "matched", key: "episode:4724475", item: { type: "episode", traktId: 4724475 } },
+  "partial translation hints do not hide localized titles from other seasons");
+  assert.ok(falloutTranslationLoads.some(({ showId, season, language }) => showId === 163965
+    && season === 1 && language === "fr"), "known seasons load despite a partial translation hint");
+  assert.equal((await fallout.match({
+    media: { title: "S1E1", artist: "Fallout", album: null, language: null },
+    pageTitle: "Prime Video: Fallout - Season 1",
+  })).status, "ambiguous", "coordinates without title evidence never choose among shows");
+
   const blacklistShows = [
     { type: "show", show: { title: "Blacklist", ids: { trakt: 209540 } } },
     { type: "show", show: { title: "The Blacklist", ids: { trakt: 46676 } } },

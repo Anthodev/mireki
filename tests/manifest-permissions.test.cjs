@@ -25,6 +25,11 @@ assert.deepEqual(netflixScript.matches, ["https://*.netflix.com/*"]);
 assert.ok(netflixScript.js.includes("providers/netflix.js"), "Netflix adapter loads on Netflix");
 assert.ok(manifest.content_scripts.filter((entry) => entry !== netflixScript)
   .every((entry) => !entry.js.includes("providers/netflix.js")), "Netflix adapter stays isolated from other providers");
+const primeScript = manifest.content_scripts.find((entry) => entry.matches.includes("https://*.primevideo.com/*"));
+assert.deepEqual(primeScript.matches, ["https://*.primevideo.com/*"]);
+assert.ok(primeScript.js.includes("providers/prime-video.js"), "Prime Video adapter loads on Prime Video");
+assert.ok(manifest.content_scripts.filter((entry) => entry !== primeScript)
+  .every((entry) => !entry.js.includes("providers/prime-video.js")), "Prime Video adapter stays isolated from other providers");
 assert.ok(manifest.permissions.includes("alarms"), "one-shot alarm expires stale scrobble state while popup is closed");
 assert.deepEqual(PROVIDER_HOSTS, expected.filter((pattern) => pattern.includes("*.")).map((pattern) => new URL(pattern.replace("*.", "www.")).hostname.slice(4)), "runtime provider allowlist stays synchronized");
 assert.equal(expected.some((pattern) => pattern.includes("<all_urls>") || pattern.startsWith("http://") || pattern === "https://*/*"), false);

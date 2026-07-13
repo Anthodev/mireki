@@ -50,6 +50,7 @@
       const candidates = [...mediaElements]
         .filter((element) => element.isConnected !== false)
         .map((element) => ({
+          element,
           tagName: element.tagName,
           currentTime: element.currentTime,
           duration: element.duration,
@@ -66,7 +67,9 @@
       };
       let providerMetadata = null;
       try {
-        providerMetadata = providerAdapter?.extractMetadata?.({ document, navigator, metadata: standardMetadata }) || null;
+        providerMetadata = providerAdapter?.extractMetadata?.({
+          document, navigator, metadata: standardMetadata, mediaElement: selected?.element,
+        }) || null;
       } catch {}
       const metadata = providerMetadata ? { ...standardMetadata, ...providerMetadata } : standardMetadata;
       return selected ? MirekiMedia.normalizeMedia(selected, metadata, document.URL) : null;

@@ -36,8 +36,14 @@ const navigator = { mediaSession: { get metadata() { return metadata; } } };
 let heartbeatCallback;
 let now = 0;
 let providerTitle = null;
+let providerMediaElement = null;
 const providerAdapter = {
-  extractMetadata: () => providerTitle ? { title: providerTitle, artist: "Provider series" } : null,
+  extractMetadata: ({ mediaElement }) => {
+    providerMediaElement = mediaElement;
+    return providerTitle ? {
+      title: providerTitle, artist: "Provider series", artwork: "https://img.test/provider.jpg",
+    } : null;
+  },
   isMetadataMutation: (record) => record.providerMetadata === true,
 };
 const observer = createMediaObserver({
@@ -50,6 +56,8 @@ assert.equal(messages.at(-1).media.title, "Media Session title");
 assert.equal(messages.at(-1).media.artist, "Channel");
 assert.equal(messages.at(-1).media.album, "Series");
 assert.equal(messages.at(-1).media.language, "fr", "page language is provider-neutral metadata");
+assert.equal(providerMediaElement, first, "provider receives selected DOM media without exposing it in observation");
+assert.equal("element" in messages.at(-1).media, false);
 
 metadata = { title: "Netflix" };
 providerTitle = "S1E2 - Provider episode";
@@ -58,6 +66,7 @@ mutationCallback([{ target: {}, removedNodes: [], addedNodes: [], providerMetada
 assert.equal(messages.length, beforeProviderMutation + 1, "provider metadata mutation emits immediately");
 assert.equal(messages.at(-1).media.title, "S1E2 - Provider episode");
 assert.equal(messages.at(-1).media.artist, "Provider series");
+assert.equal(messages.at(-1).media.artwork, "https://img.test/provider.jpg");
 metadata = { title: "  Media Session title  ", artist: "Channel", album: "Series" };
 providerTitle = null;
 

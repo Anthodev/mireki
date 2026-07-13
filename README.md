@@ -42,7 +42,7 @@ Mireki can observe standard media playback on:
 - Peacock
 - Prime Video
 
-Provider support depends on metadata exposed by each website and by Firefox. Netflix includes a dedicated fallback for series and episode labels when Firefox only exposes a generic Netflix title. Other services use the same provider-neutral media observer and may need additional real-world validation.
+Provider support depends on metadata exposed by each website and by Firefox. Netflix and Prime Video include dedicated, player-scoped fallbacks for series and episode labels when standard metadata is insufficient. Other services use the same provider-neutral media observer and may need additional real-world validation.
 
 ## Trakt scrobbling
 

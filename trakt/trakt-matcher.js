@@ -122,8 +122,10 @@
         const pending = episodes(showId).then(async (canonical) => {
           const translatedSeasonNumbers = canonical.filter((episode) => episode.season !== null
             && episode.translationLanguages.includes(code)).map((episode) => episode.season);
-          const seasonNumbers = [...new Set((translatedSeasonNumbers.length ? translatedSeasonNumbers
-            : canonical.filter((episode) => episode.season !== null).map((episode) => episode.season)))].slice(0, 50);
+          const seasonNumbers = [...new Set([
+            ...translatedSeasonNumbers,
+            ...canonical.filter((episode) => episode.season !== null).map((episode) => episode.season),
+          ])].slice(0, 50);
           const values = [];
           for (const season of seasonNumbers) {
             let translated;
@@ -156,10 +158,13 @@
     function episodeTitleQueries(title) {
       const value = bounded(title);
       if (!value) return [];
-      const withoutNumber = value.replace(new RegExp(
+      const withoutCoordinates = value.replace(
+        /^\s*(?:S\s*\d{1,3}\s*E\s*\d{1,4}|\d{1,3}\s*x\s*\d{1,4})\s*(?:[-:–—.]\s*)?/iu, "",
+      );
+      const withoutNumber = withoutCoordinates.replace(new RegExp(
         `^\\s*(?:(?:${EPISODE})|E)\\s*\\d{1,4}\\s*(?:[-:–—.]\\s*)?`, "iu",
       ), "");
-      return unique([value, withoutNumber].map(normalizeTitle));
+      return unique([value, withoutCoordinates, withoutNumber].map(normalizeTitle));
     }
     function episodeTitleIds(values, title, episodeNumber, includeAbsolute = false) {
       const titles = episodeTitleQueries(title);
@@ -200,9 +205,9 @@
       const ids = [];
       for (const query of unique(queries.map(bounded)).slice(0, 4)) {
         const exactResults = await client.searchExact("show", query);
-        const exact = resultIds(exactResults, "show");
-        if (exact.length === 1) { ids.push(exact[0]); continue; }
-        if (exact.length > 1) {
+        const exactItems = resultItems(exactResults, "show");
+        const exact = unique(exactItems.map((item) => item.ids.trakt));
+        if (exact.length && exactItems.some((item) => nearTitle(query, item))) {
           ids.push(...exact);
           continue;
         }
@@ -212,7 +217,7 @@
             .filter((item) => nearTitle(query, item)).map((item) => item.ids.trakt));
           if (nearby.length) break;
         }
-        ids.push(...unique(nearby));
+        ids.push(...(nearby.length ? unique(nearby) : exact));
       }
       return unique(ids);
     }
@@ -236,8 +241,15 @@
           }
         }
         const traktIds = unique(coordinateMatches);
-        return traktIds.length === 1 ? matchedEpisode(traktIds[0])
-          : { status: traktIds.length > 1 ? "ambiguous" : "unmatched" };
+        if (traktIds.length === 1) return matchedEpisode(traktIds[0]);
+        if (traktIds.length > 1) {
+          const titleIds = await episodeTitleIdsForShows(
+            showIds, media.title, media.language, coordinates.episode,
+          );
+          const confirmed = titleIds.filter((traktId) => traktIds.includes(traktId));
+          if (confirmed.length === 1) return matchedEpisode(confirmed[0]);
+        }
+        return { status: traktIds.length > 1 ? "ambiguous" : "unmatched" };
       }
       if (absoluteEpisode) {
         if (!showIds.length) return { status: "unmatched" };
