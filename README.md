@@ -1,73 +1,92 @@
-# Mireki
+<p align="center">
+  <img src="icons/mireki.svg" width="96" height="96" alt="Mireki logo">
+</p>
 
-[![Tests](https://github.com/Anthodev/mireki/actions/workflows/tests.yml/badge.svg?branch=develop)](https://github.com/Anthodev/mireki/actions/workflows/tests.yml)
+<h1 align="center">Mireki</h1>
 
-Build-free Firefox MV3 WebExtension for Firefox 142+. Mireki continuously observes standard HTML video/audio on explicitly supported streaming services and shows best current playback. Connected Trakt accounts receive automatic start/pause scrobbles and one watched completion at 85% when metadata resolves uniquely.
+<p align="center"><strong>Keep your Trakt viewing history in sync while you watch.</strong></p>
 
-## Run in Firefox
+<p align="center">
+  <a href="https://github.com/Anthodev/mireki/actions/workflows/tests.yml"><img src="https://github.com/Anthodev/mireki/actions/workflows/tests.yml/badge.svg?branch=develop" alt="Tests"></a>
+</p>
 
-1. Open `about:debugging` → **This Firefox** → **Load Temporary Add-on…**.
-2. Select `manifest.json` and accept access to supported streaming services.
-3. Pin Mireki to toolbar.
-4. Open media on a supported streaming service; popup reports playing media even when source tab is not active.
+Mireki is a privacy-conscious Firefox extension that follows playback across supported streaming services and automatically reports it to Trakt. It keeps working when the popup is closed, when the source tab is in the background, and when a site replaces its player during navigation.
 
-Or:
+A Trakt account is optional: without one, Mireki still provides a simple global view of what is currently playing across your open tabs.
+
+## Highlights
+
+- **Continuous playback detection** — observes supported streaming tabs without requiring a toolbar click.
+- **Automatic Trakt scrobbling** — starts, pauses, and completes viewing history automatically.
+- **85% completion threshold** — marks an item watched only after Mireki reaches its project completion threshold.
+- **Cautious matching** — supports localized titles, aliases, common episode formats, and absolute anime numbering without guessing ambiguous results.
+- **One global playback status** — keeps the current playing source stable when several tabs or embedded players are active.
+- **Background resilience** — recovers observation after Firefox unloads and restarts the extension background.
+- **No telemetry** — Mireki does not maintain analytics or collect unrelated browsing history.
+
+## Supported streaming services
+
+Mireki can observe standard media playback on:
+
+- Animation Digital Network
+- Apple TV+
+- Crunchyroll
+- Disney+
+- HBO Max
+- Hulu
+- Max
+- Netflix
+- Paramount+
+- Peacock
+- Prime Video
+
+Provider support depends on metadata exposed by each website and by Firefox. Crunchyroll is the primary development target; other services use the same provider-neutral media observer and may need additional real-world validation.
+
+## Trakt scrobbling
+
+Connect Trakt from **Firefox Add-ons → Mireki → Preferences**. Once connected, Mireki resolves the selected media and sends meaningful playback transitions rather than an update every second.
+
+Mireki deliberately leaves media as **Unmatched**, **Ambiguous**, or **Episode unknown** when metadata is insufficient. It never silently invents a season or chooses between multiple candidates.
+
+## Privacy and permissions
+
+Continuous playback detection requires access to the supported streaming domains listed above. Mireki does not request access to unrelated websites, generic Amazon retail pages, HTTP, local files, or FTP.
+
+Raw tab and frame observations remain local and expire quickly. When Trakt is connected, only the selected title or episode metadata, Trakt identifiers, and playback progress needed for matching and scrobbling are sent to Trakt. OAuth tokens stay in Firefox extension storage and are never exposed to streaming pages, the popup, or logs.
+
+Disconnecting removes local credentials and Mireki's local completion state, while also attempting to revoke remote Trakt access. Firefox extension storage is controlled by the extension but is not encrypted against someone with access to the local Firefox profile or operating system account.
+
+## Development and Firefox debugging
+
+Mireki uses native JavaScript and does not require a build step or runtime dependencies.
+
+### Temporary installation
+
+1. Open `about:debugging` in Firefox.
+2. Select **This Firefox**.
+3. Choose **Load Temporary Add-on…**.
+4. Select this repository's `manifest.json`.
+5. Accept access to the supported streaming services, then pin Mireki to the toolbar.
+
+Firefox removes temporary extensions when the browser closes.
+
+### Run with web-ext
+
+With Node.js 24 or newer:
 
 ```sh
 npx --yes web-ext@10.5.0 run --source-dir .
 ```
 
-## Account connection
-
-Open Firefox Add-ons → Mireki → Preferences. Trakt login starts from this page. Set public `oauthBrokerUrl` and `traktClientId` in `config/auth-config.js`. Never add Trakt client secret. Broker receives only OAuth authorization code/token data. Raw observations stay local; selected media titles, episode coordinates, Trakt IDs, and playback progress are sent directly to Trakt for matching and scrobbling.
-
-Tokens are stored by background code in `browser.storage.local` and never returned to options/content scripts. Firefox extension storage is not encrypted against someone with local profile or OS access. Disconnect asks broker to revoke remote access and always removes local token; options warns if remote revocation fails.
-
-### Bunny OAuth broker contract
-
-Broker must implement `POST /v1/oauth/trakt/start`, `/exchange`, `/refresh`, and `/revoke`. Extension revoke request is JSON `{ "accessToken": "<current valid access token>" }`. Bunny must call Trakt `POST https://api.trakt.tv/oauth/revoke` with `Content-Type: application/json` and body exactly `{ "token": "<access token>", "client_id": "<public client ID>", "client_secret": "<Bunny-only secret>" }`. Bunny must never return or log client secret. Until revoke endpoint exists, disconnect still deletes local token and reports remote revocation failure.
-
-## Verify
+### Run project checks
 
 ```sh
 node --test
-find auth background config content options playback popup services shared trakt -name '*.js' -print0 | xargs -0 -n1 node --check
-node -e "const fs=require('node:fs'); const m=JSON.parse(fs.readFileSync('manifest.json')); for(const p of [m.action.default_popup,...Object.values(m.icons),...m.background.scripts,...m.content_scripts.flatMap(x=>x.js)]) fs.accessSync(p)"
 npx --yes web-ext@10.5.0 lint --source-dir .
 ```
 
-## Permissions and privacy
+Pushes and merges to `develop` run the complete test, syntax, manifest, and extension lint checks through GitHub Actions.
 
-Mireki requests HTTPS access only for an explicit streaming allowlist: Crunchyroll, Netflix, Prime Video, Paramount+, Animation Digital Network, Max/HBO Max, Disney+, Apple TV+, Hulu, and Peacock, plus background-only Trakt API access. Generic Amazon retail domains, HTTP, file, FTP, Firefox UI, extension pages, PDF viewer, and unrelated websites are excluded. These permissions allow continuous playback observation in background tabs and matching embedded frames without toolbar clicks.
+## License
 
-Observer reads only standard media state, bounded Media Session title/artist/album/artwork when exposed, media/page title fallback, and source URL/hostname needed for status. Raw frame/session data stays in extension memory and expires after 30 seconds. For connected accounts, selected title metadata and progress are sent directly to Trakt; no unrelated browsing data is sent. No telemetry or browsing-history persistence exists. Opening popup may load validated HTTPS artwork from its third-party host with no referrer; host can still observe normal network metadata such as IP and user agent. Page values remain untrusted and popup uses `textContent`.
-
-## Architecture and lifecycle
-
-- `playback/media-snapshot.js`: provider-neutral selection plus bounded standard Media Session metadata normalization; media/page title remains title fallback. No 85% completion behavior.
-- `content/media-observer.js`: declarative all-frame observer. Media listeners cover playback/seek/duration events; `timeupdate` sends at most once per second. `MutationObserver` tracks only inserted/removed media, including YouTube-style SPA player replacement. Ten-second heartbeat while media exists restores state after MV3 event-page restart.
-- `shared/session-store.js` and `background/`: validate sender/message boundaries, retain latest frame states, keep current playing winner sticky against competing playing frames, and route only selected global status through one awaited Trakt listener. Navigation, closed-tab, explicit-empty, and a one-shot background alarm at the earliest 30-second expiry update selection even without another observation.
-- `trakt/`: strict API client and automatic matcher. Exact search uses Trakt canonical/original titles, translations, and aliases when indexed. If exact search misses a transliteration such as Kamui/Kamuy, one-edit fuzzy fallback is accepted only when it leaves one canonical candidate. Episodes use explicit season/episode coordinates or Trakt's unique `number_abs` mapping from full episode metadata for absolute provider numbering; cumulative season offsets are never guessed.
-- `playback/scrobble-controller.js`: accepts only selected global status; pauses replaced playing winner before starting next source; sends stop once at 85%; persists only acknowledged completion IDs. Deterministic failures use bounded volatile five-minute cooldown keyed by normalized title/artist/album; metadata changes retry immediately, while transient failures retain retry timing.
-- `popup/`: renders artwork, playback, and safe Trakt sync status. Closing popup does not stop observation or scrobbling.
-
-Background state is intentionally memory-only. Firefox MV3 background scripts can unload; next active-media heartbeat/event repopulates it within ten seconds. Only normalized OAuth tokens and bounded acknowledged Trakt completion IDs are durable; browsing URLs and raw observations remain volatile. First selected playing frame stays winner while it remains playing; when it pauses, ends, disappears, navigates, or expires, deterministic rank and recency choose replacement. Ads or embedded players can therefore win until provider metadata exists.
-
-## Manual Firefox checks
-
-1. Start supported playback, close popup for at least 15 seconds, reopen it: playback and progress appear.
-2. Leave playback running, switch to another tab, open popup: source remains selected.
-3. Verify an indexed translated/localized title resolves through Trakt exact search; missing or ambiguous metadata remains unsynced.
-4. On a show using absolute numbering, verify `Episode 52` resolves only when Trakt exposes one unique episode with `number_abs: 52`.
-5. Play standard `<video>` or `<audio>` on another allowlisted streaming service; playing media beats paused media.
-6. Pause all media, close a source tab, and navigate another source tab: stale source disappears.
-7. Inspect `about:debugging` background context, terminate/reload it if available, wait up to ten seconds: heartbeat restores status.
-
-## Mozilla sources
-
-- [Declarative content scripts and `all_frames`](https://developer.mozilla.org/en-US/docs/Mozilla/Add-ons/WebExtensions/manifest.json/content_scripts)
-- [Content-script permissions and restrictions](https://developer.mozilla.org/en-US/docs/Mozilla/Add-ons/WebExtensions/Content_scripts)
-- [Firefox MV3 background scripts](https://developer.mozilla.org/en-US/docs/Mozilla/Add-ons/WebExtensions/manifest.json/background)
-- [`runtime.onMessage`](https://developer.mozilla.org/en-US/docs/Mozilla/Add-ons/WebExtensions/API/runtime/onMessage)
-- [`tabs.onRemoved`](https://developer.mozilla.org/en-US/docs/Mozilla/Add-ons/WebExtensions/API/tabs/onRemoved)
-- [`tabs.onUpdated`](https://developer.mozilla.org/en-US/docs/Mozilla/Add-ons/WebExtensions/API/tabs/onUpdated)
+Mireki is available under the [MIT License](LICENSE).
