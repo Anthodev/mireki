@@ -36,6 +36,14 @@ assert.equal(elements.artwork.getAttribute("src"), "https://img.test/cover.jpg")
 assert.equal(elements.artwork.hidden, false);
 
 renderState({ kind: "media", media: {
+  kind: "video", title: "Completed", artist: null, album: null, artwork: null,
+  currentTime: 90, duration: 100, state: "playing", progress: 90,
+}, source: { pageTitle: "Completed", hostname: "example.test" }, sync: { state: "synced" } }, elements);
+assert.equal(elements.syncLabel.textContent, "Watched");
+assert.equal(elements.sync.dataset.state, "synced");
+assert.equal(elements.sync.getAttribute("aria-label"), "Trakt synchronization: Watched");
+
+renderState({ kind: "media", media: {
   kind: "video", title: "Video", artist: null, album: null,
   currentTime: 0, duration: null, state: "paused", progress: null,
 }, source: { pageTitle: "Video", hostname: "youtube.com" } }, elements);

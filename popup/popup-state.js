@@ -10,7 +10,7 @@ const stateLabels = { playing: "Playing", paused: "Paused", ended: "Ended" };
 const syncLabels = {
   idle: "Idle", notConnected: "Not connected", matching: "Matching", unmatched: "Unmatched",
   ambiguous: "Ambiguous", needsEpisode: "Episode unknown", unsupported: "Unsupported",
-  syncing: "Syncing", scrobbling: "Scrobbling", paused: "Paused", synced: "Synced", error: "Sync error",
+  syncing: "Syncing", scrobbling: "Scrobbling", paused: "Paused", synced: "Watched", error: "Sync error",
 };
 const sameText = (left, right) => left?.trim().toLocaleLowerCase() === right?.trim().toLocaleLowerCase();
 function sourceLabel(media, source, displayedTitle = media.title) {

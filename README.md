@@ -18,7 +18,7 @@ A Trakt account is optional: without one, Mireki still provides a simple global 
 
 - **Continuous playback detection** — observes supported streaming tabs without requiring a toolbar click.
 - **Automatic Trakt scrobbling** — starts, pauses, and completes viewing history automatically.
-- **85% completion threshold** — marks an item watched only after Mireki reaches its project completion threshold.
+- **90% completion threshold** — marks an item watched only after Mireki reaches its project completion threshold.
 - **Cautious matching** — supports localized titles, aliases, common episode formats, and absolute anime numbering without guessing ambiguous results.
 - **One global playback status** — keeps the current playing source stable when several tabs or embedded players are active.
 - **Background resilience** — recovers observation after Firefox unloads and restarts the extension background.

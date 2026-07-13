@@ -4,7 +4,7 @@
   else root.MirekiScrobbleController = api;
 })(globalThis, () => {
   const COMPLETED_KEY = "scrobble.completed.v1";
-  const THRESHOLD = 85;
+  const THRESHOLD = 90;
   const MIN_SCROBBLE_PROGRESS = 1;
   const NEGATIVE_TTL = 5 * 60_000;
   const validCompleted = (value) => value && typeof value === "object" && !Array.isArray(value);

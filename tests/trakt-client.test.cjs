@@ -26,7 +26,7 @@ const client = createTraktClient({ clientId: "public", getAccessToken: async () 
   response = { ok: false, status: 409, headers: { get: () => null }, json: async () => ({}) };
   assert.equal((await client.scrobble("pause", { type: "movie", traktId: 42 }, 50)).duplicate, true, "already-inactive pause is idempotent");
   response = { ok: false, status: 409, headers: { get: () => null }, json: async () => ({ watched_at: "now" }) };
-  assert.equal((await client.scrobble("stop", { type: "movie", traktId: 42 }, 85)).duplicate, true);
+  assert.equal((await client.scrobble("stop", { type: "movie", traktId: 42 }, 90)).duplicate, true);
   response = { ok: false, status: 429, headers: { get: () => "5" }, json: async () => ({}) };
   await assert.rejects(() => client.searchExact("show", "Show"), (error) => error instanceof TraktApiError && error.status === 429 && error.retryAfter > Date.now());
   console.log("Trakt client checks: OK");

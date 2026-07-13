@@ -1,5 +1,5 @@
 const assert = require("node:assert/strict");
-const { createScrobbleController, COMPLETED_KEY, MIN_SCROBBLE_PROGRESS, NEGATIVE_TTL } = require("../playback/scrobble-controller.js");
+const { createScrobbleController, COMPLETED_KEY, THRESHOLD, MIN_SCROBBLE_PROGRESS, NEGATIVE_TTL } = require("../playback/scrobble-controller.js");
 let stored = {};
 const storage = { async get(key) { return { [key]: stored[key] }; }, async set(value) { Object.assign(stored, value); } };
 const calls = [];
@@ -9,6 +9,7 @@ const source = (tabId, frameId = 0) => ({ tabId, frameId, url: `https://site${ta
 const status = (title, progress, state, tabId = 1, frameId = 0, extra = {}) => ({ kind: "media", source: source(tabId, frameId), media: { title, artist: null, album: null, duration: 100, progress, state, ...extra } });
 
 (async () => {
+  assert.equal(THRESHOLD, 90);
   assert.equal(MIN_SCROBBLE_PROGRESS, 1);
   const earlyCalls = [];
   const early = createScrobbleController({ matcher, client: { async scrobble(action) { earlyCalls.push(action); return { action }; } }, isConnected: async () => true, storage: { async get(){return{};},async set(){} } });
@@ -30,8 +31,10 @@ const status = (title, progress, state, tabId = 1, frameId = 0, extra = {}) => (
   assert.deepEqual(calls.map(({ action, id }) => [action, id]), [["start", 1], ["pause", 1], ["start", 1]], "replacement pauses prior global winner before start");
   await controller.handle(status("Two", 30, "playing", 2));
   assert.deepEqual(calls.slice(-2).map(({ action, id }) => [action, id]), [["pause", 1], ["start", 2]], "SPA metadata invalidates old match");
-  await controller.handle(status("Two", 85, "playing", 2));
-  assert.equal(stored[COMPLETED_KEY]["movie:2"], 1234);
+  await controller.handle(status("Two", 89, "playing", 2));
+  assert.equal(stored[COMPLETED_KEY]?.["movie:2"], undefined, "below 90 percent does not complete");
+  await controller.handle(status("Two", 90, "playing", 2));
+  assert.equal(stored[COMPLETED_KEY]["movie:2"], 1234, "exact 90 percent completes");
   assert.equal(controller.statusFor(source(2)).state, "synced");
   const afterStop = calls.length;
   await controller.handle(status("One", 90, "playing", 2));
@@ -100,7 +103,7 @@ const status = (title, progress, state, tabId = 1, frameId = 0, extra = {}) => (
   let writes = 0;
   const slowStorage = { async get(){return{};}, set() { writes++; return new Promise((resolve) => { releaseSet = resolve; }); } };
   const slow = createScrobbleController({ matcher, client, isConnected: async () => true, storage: slowStorage });
-  const completion = slow.handle(status("One", 85, "playing", 5));
+  const completion = slow.handle(status("One", 90, "playing", 5));
   while (!releaseSet) await Promise.resolve();
   const reset = slow.reset();
   let resetDone = false;

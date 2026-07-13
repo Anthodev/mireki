@@ -65,9 +65,9 @@ assert.equal(normalizeMedia(media(), { artwork: "https://img.test/session.jpg" }
 assert.equal(normalizeMedia(media({ currentTime: 999 })).progress, 100);
 assert.equal(normalizeMedia(media({ duration: Infinity })).duration, null);
 assert.equal(normalizeMedia(media({ duration: Infinity })).progress, null);
-assert.equal(normalizeMedia(media({ currentTime: 102, duration: 120 })).progress, 85);
+assert.equal(normalizeMedia(media({ currentTime: 108, duration: 120 })).progress, 90);
 assert.equal("watched" in normalizeMedia(media({ currentTime: 102, duration: 120 })), false,
-  "snapshot normalization stays independent from 85% completion policy");
+  "snapshot normalization stays independent from 90% completion policy");
 assert.equal(normalizeMedia(media({ paused: false })).state, "playing");
 assert.equal(normalizeMedia(media({ ended: true })).state, "ended");
 
