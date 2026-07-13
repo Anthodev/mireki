@@ -1,0 +1,145 @@
+name: Release
+run-name: Release ${{ github.ref_name }}
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Check out tagged revision
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          fetch-depth: 0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version: 24
+
+      - name: Validate tag and manifest version
+        id: release
+        shell: bash
+        run: |
+          tag="$GITHUB_REF_NAME"
+          if [[ ! "$tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-(alpha|beta|rc)\.[0-9]+)?$ ]]; then
+            echo "Unsupported release tag: $tag" >&2
+            exit 1
+          fi
+
+          tag_version="${tag#v}"
+          manifest_version="$(node -p "require('./manifest.json').version")"
+          base_version="${tag_version%%-*}"
+          if [[ "$base_version" != "$manifest_version" ]]; then
+            echo "Tag base $base_version does not match manifest version $manifest_version" >&2
+            exit 1
+          fi
+
+          git merge-base --is-ancestor "$GITHUB_SHA" origin/develop || {
+            echo "Tagged commit must belong to develop" >&2
+            exit 1
+          }
+
+          if [[ "$tag_version" == *-* ]]; then
+            prerelease=true
+          else
+            prerelease=false
+          fi
+
+          echo "version=$tag_version" >> "$GITHUB_OUTPUT"
+          echo "manifest-version=$manifest_version" >> "$GITHUB_OUTPUT"
+          echo "prerelease=$prerelease" >> "$GITHUB_OUTPUT"
+
+      - name: Run tests
+        run: node --test
+
+      - name: Check JavaScript syntax
+        run: find auth background config content options playback popup services shared trakt -name '*.js' -print0 | xargs -0 -n1 node --check
+
+      - name: Check manifest assets
+        run: node -e "const fs=require('node:fs'); const m=JSON.parse(fs.readFileSync('manifest.json')); for(const p of [m.action.default_popup,...Object.values(m.icons),...m.background.scripts,...m.content_scripts.flatMap(x=>x.js)]) fs.accessSync(p)"
+
+      - name: Lint extension
+        run: npx --yes web-ext@10.5.0 lint --source-dir .
+
+      - name: Build extension package
+        shell: bash
+        run: |
+          npx --yes web-ext@10.5.0 build \
+            --source-dir . \
+            --artifacts-dir web-ext-artifacts \
+            --filename "mireki-${{ steps.release.outputs.version }}.zip" \
+            --overwrite-dest \
+            --ignore-files ".github" ".github/**" ".pi" ".pi/**" ".jj" ".jj/**" ".git" ".git/**" "tests" "tests/**" "web-ext-artifacts" "web-ext-artifacts/**" "AGENTS.md" "README.md" ".gitignore" ".env*" "*.key" "*.pem" "*.p12" "*.pfx" "*.crt" "*.cer"
+          unzip -t "web-ext-artifacts/mireki-${{ steps.release.outputs.version }}.zip"
+
+      - name: Check AMO credentials
+        env:
+          WEB_EXT_API_KEY: ${{ secrets.AMO_API_KEY }}
+          WEB_EXT_API_SECRET: ${{ secrets.AMO_API_SECRET }}
+        run: test -n "$WEB_EXT_API_KEY" && test -n "$WEB_EXT_API_SECRET"
+
+      - name: Submit stable release to AMO
+        if: steps.release.outputs.prerelease == 'false'
+        env:
+          WEB_EXT_API_KEY: ${{ secrets.AMO_API_KEY }}
+          WEB_EXT_API_SECRET: ${{ secrets.AMO_API_SECRET }}
+        run: >-
+          npx --yes web-ext@10.5.0 sign
+          --source-dir .
+          --channel listed
+          --amo-metadata .github/amo-metadata.json
+          --approval-timeout 0
+          --no-input
+          --ignore-files ".github" ".github/**" ".pi" ".pi/**" ".jj" ".jj/**" ".git" ".git/**" "tests" "tests/**" "web-ext-artifacts" "web-ext-artifacts/**" "AGENTS.md" "README.md" ".gitignore" ".env*" "*.key" "*.pem" "*.p12" "*.pfx" "*.crt" "*.cer"
+
+      - name: Sign prerelease for self-distribution
+        if: steps.release.outputs.prerelease == 'true'
+        env:
+          WEB_EXT_API_KEY: ${{ secrets.AMO_API_KEY }}
+          WEB_EXT_API_SECRET: ${{ secrets.AMO_API_SECRET }}
+        run: >-
+          npx --yes web-ext@10.5.0 sign
+          --source-dir .
+          --channel unlisted
+          --artifacts-dir web-ext-artifacts
+          --approval-timeout 900000
+          --no-input
+          --ignore-files ".github" ".github/**" ".pi" ".pi/**" ".jj" ".jj/**" ".git" ".git/**" "tests" "tests/**" "web-ext-artifacts" "web-ext-artifacts/**" "AGENTS.md" "README.md" ".gitignore" ".env*" "*.key" "*.pem" "*.p12" "*.pfx" "*.crt" "*.cer"
+
+      - name: Create stable GitHub draft
+        if: steps.release.outputs.prerelease == 'false'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: >-
+          gh release create "$GITHUB_REF_NAME"
+          "web-ext-artifacts/mireki-${{ steps.release.outputs.version }}.zip#Firefox extension ZIP (temporary manual loading)"
+          --draft
+          --generate-notes
+          --verify-tag
+
+      - name: Create GitHub prerelease
+        if: steps.release.outputs.prerelease == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          xpi="$(find web-ext-artifacts -maxdepth 1 -type f -name '*.xpi' -print -quit)"
+          test -n "$xpi"
+          gh release create "$GITHUB_REF_NAME" \
+            "web-ext-artifacts/mireki-${{ steps.release.outputs.version }}.zip#Firefox extension ZIP (temporary manual loading)" \
+            "$xpi#Signed Firefox extension" \
+            --prerelease \
+            --generate-notes \
+            --verify-tag

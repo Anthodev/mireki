@@ -7,7 +7,9 @@
 <p align="center"><strong>Keep your Trakt viewing history in sync while you watch.</strong></p>
 
 <p align="center">
+  <a href="https://github.com/Anthodev/mireki/releases/latest"><img src="https://img.shields.io/github/v/release/Anthodev/mireki?display_name=tag" alt="Latest version"></a>
   <a href="https://github.com/Anthodev/mireki/actions/workflows/tests.yml"><img src="https://github.com/Anthodev/mireki/actions/workflows/tests.yml/badge.svg?branch=develop" alt="Tests"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/github/license/Anthodev/mireki" alt="License"></a>
 </p>
 
 Mireki is a privacy-conscious Firefox extension that follows playback across supported streaming services and automatically reports it to Trakt. It keeps working when the popup is closed, when the source tab is in the background, and when a site replaces its player during navigation.
@@ -18,8 +20,8 @@ A Trakt account is optional: without one, Mireki still provides a simple global 
 
 - **Continuous playback detection** — observes supported streaming tabs without requiring a toolbar click.
 - **Automatic Trakt scrobbling** — starts, pauses, and completes viewing history automatically.
-- **90% completion threshold** — marks an item watched only after Mireki reaches its project completion threshold.
-- **Cautious matching** — supports localized titles, aliases, common episode formats, and absolute anime numbering without guessing ambiguous results.
+- **90% completion threshold** — marks an item watched only after Mireki reaches its completion threshold.
+- **Cautious matching** — supports localized titles, aliases, common episode formats, and absolute anime numbering.
 - **One global playback status** — keeps the current playing source stable when several tabs or embedded players are active.
 - **Background resilience** — recovers observation after Firefox unloads and restarts the extension background.
 - **No telemetry** — Mireki does not maintain analytics or collect unrelated browsing history.
@@ -56,6 +58,12 @@ Raw tab and frame observations remain local and expire quickly. When Trakt is co
 
 Disconnecting removes local credentials and Mireki's local completion state, while also attempting to revoke remote Trakt access. Firefox extension storage is controlled by the extension but is not encrypted against someone with access to the local Firefox profile or operating system account.
 
+## Install without Firefox Add-ons
+
+If you prefer not to install Mireki from the official Firefox Add-ons store, download the Mozilla-signed `.xpi` file from the matching [GitHub release](https://github.com/Anthodev/mireki/releases) and open it with Firefox. It provides the same extension without going through the store page.
+
+Each release also includes a ZIP archive. Changing its `.zip` extension to `.xpi` turns it into an unsigned XPI without changing its contents. This unsigned version is intended for temporary loading through `about:debugging` and is removed when Firefox closes. Permanent installation on standard Firefox still requires the Mozilla-signed XPI.
+
 ## Development and Firefox debugging
 
 Mireki uses native JavaScript and does not require a build step or runtime dependencies.
@@ -84,8 +92,6 @@ npx --yes web-ext@10.5.0 run --source-dir .
 node --test
 npx --yes web-ext@10.5.0 lint --source-dir .
 ```
-
-Pushes and merges to `develop` run the complete test, syntax, manifest, and extension lint checks through GitHub Actions.
 
 ## License
 

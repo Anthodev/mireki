@@ -1,0 +1,9 @@
+{
+  "summary": {
+    "en-US": "Automatically detect supported streaming playback and keep your Trakt viewing history in sync."
+  },
+  "categories": ["other"],
+  "version": {
+    "license": "MIT"
+  }
+}
