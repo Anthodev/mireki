@@ -58,9 +58,9 @@ jobs:
           file_url="$(node - <<'NODE'
           const fs = require('node:fs');
           const version = JSON.parse(fs.readFileSync('/tmp/amo-version.json'));
-          if (version.file?.is_mozilla_signed_extension !== true) process.exit(1);
+          if (version.channel !== 'listed' || version.file?.status !== 'public' || !version.reviewed) process.exit(1);
           const url = new URL(version.file.url);
-          if (url.protocol !== 'https:') process.exit(1);
+          if (url.origin !== 'https://addons.mozilla.org' || !url.pathname.endsWith('.xpi')) process.exit(1);
           process.stdout.write(url.href);
           NODE
           )"

@@ -84,23 +84,6 @@ jobs:
             --ignore-files ".github" ".github/**" ".pi" ".pi/**" ".jj" ".jj/**" ".git" ".git/**" "tests" "tests/**" "web-ext-artifacts" "web-ext-artifacts/**" "AGENTS.md" "README.md" ".gitignore" ".env*" "*.key" "*.pem" "*.p12" "*.pfx" "*.crt" "*.cer"
           unzip -t "web-ext-artifacts/mireki-${{ steps.release.outputs.version }}.zip"
 
-      - name: Generate release notes
-        shell: bash
-        run: |
-          previous_tag="$(git describe --tags --match 'v[0-9]*' --abbrev=0 "$GITHUB_SHA^" 2>/dev/null || true)"
-          if [[ -n "$previous_tag" ]]; then
-            range="$previous_tag..$GITHUB_SHA"
-            changelog_url="https://github.com/$GITHUB_REPOSITORY/compare/$previous_tag...$GITHUB_REF_NAME"
-          else
-            range="$GITHUB_SHA"
-            changelog_url="https://github.com/$GITHUB_REPOSITORY/commits/$GITHUB_REF_NAME"
-          fi
-
-          {
-            printf '## Changes\n\n'
-            git log --first-parent --format='- %s (`%h`)' "$range"
-            printf '\n\n**Full changelog**: %s\n' "$changelog_url"
-          } > release-notes.md
 
       - name: Check AMO credentials
         env:
@@ -135,6 +118,24 @@ jobs:
           --approval-timeout 900000
           --no-input
           --ignore-files ".github" ".github/**" ".pi" ".pi/**" ".jj" ".jj/**" ".git" ".git/**" "tests" "tests/**" "web-ext-artifacts" "web-ext-artifacts/**" "AGENTS.md" "README.md" ".gitignore" ".env*" "*.key" "*.pem" "*.p12" "*.pfx" "*.crt" "*.cer"
+
+      - name: Generate release notes
+        shell: bash
+        run: |
+          previous_tag="$(git describe --tags --match 'v[0-9]*' --abbrev=0 "$GITHUB_SHA^" 2>/dev/null || true)"
+          if [[ -n "$previous_tag" ]]; then
+            range="$previous_tag..$GITHUB_SHA"
+            changelog_url="https://github.com/$GITHUB_REPOSITORY/compare/$previous_tag...$GITHUB_REF_NAME"
+          else
+            range="$GITHUB_SHA"
+            changelog_url="https://github.com/$GITHUB_REPOSITORY/commits/$GITHUB_REF_NAME"
+          fi
+
+          {
+            printf '## Changes\n\n'
+            git log --first-parent --format='- %s (`%h`)' "$range"
+            printf '\n\n**Full changelog**: %s\n' "$changelog_url"
+          } > release-notes.md
 
       - name: Create stable GitHub draft
         if: steps.release.outputs.prerelease == 'false'
