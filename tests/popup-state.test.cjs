@@ -9,15 +9,18 @@ const element = () => ({
 });
 const elements = {
   message: element(), details: element(), artwork: element(), title: element(), source: element(), status: element(), sync: element(), syncLabel: element(),
-  time: element(), progress: element(), bar: element(),
+  optionsButton: element(), time: element(), progress: element(), bar: element(),
 };
+elements.optionsButton.hidden = true;
 
 assert.equal(formatTime(65), "1:05");
 assert.equal(formatTime(3661), "1:01:01");
 renderState({ kind: "empty" }, elements);
 assert.match(elements.message.textContent, /No media/);
+assert.equal(elements.optionsButton.hidden, false, "options button is shown with the empty state");
 renderState({ kind: "error" }, elements);
 assert.match(elements.message.textContent, /unavailable/);
+assert.equal(elements.optionsButton.hidden, true, "options button stays hidden for errors");
 assert.equal(elements.artwork.getAttribute("src"), null);
 renderState({ kind: "media", media: {
   kind: "video", title: "<img onerror=alert(1)>", artist: "Channel <b>name</b>", album: null, artwork: "https://img.test/cover.jpg",
@@ -32,6 +35,7 @@ assert.equal(elements.source.textContent, "Channel <b>name</b>");
 assert.equal(elements.progress.textContent, "25.0 %");
 assert.equal(elements.bar.value, 25);
 assert.equal(elements.details.hidden, false);
+assert.equal(elements.optionsButton.hidden, true, "options button stays hidden during playback");
 assert.equal(elements.artwork.getAttribute("src"), "https://img.test/cover.jpg");
 assert.equal(elements.artwork.hidden, false);
 

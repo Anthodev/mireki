@@ -1,10 +1,16 @@
 (function (root, factory) {
-  const api = factory();
+  const thresholdApi = root.MirekiCompletionThreshold
+    || (typeof require === "function" ? require("../shared/completion-threshold.js") : null);
+  const api = factory(thresholdApi);
   if (typeof module === "object" && module.exports) module.exports = api;
   else root.MirekiScrobbleController = api;
-})(globalThis, () => {
+})(globalThis, (MirekiCompletionThreshold) => {
+  const {
+    COMPLETION_THRESHOLD_KEY,
+    DEFAULT_COMPLETION_THRESHOLD,
+    normalizeCompletionThreshold,
+  } = MirekiCompletionThreshold;
   const COMPLETED_KEY = "scrobble.completed.v1";
-  const THRESHOLD = 90;
   const MIN_SCROBBLE_PROGRESS = 1;
   const NEGATIVE_TTL = 5 * 60_000;
   const validCompleted = (value) => value && typeof value === "object" && !Array.isArray(value);
@@ -23,6 +29,11 @@
     let completedPromise;
     let generation = 0;
     let suspended = false;
+    let completionThreshold = DEFAULT_COMPLETION_THRESHOLD;
+    let thresholdChanged = false;
+    const thresholdReady = storage.get(COMPLETION_THRESHOLD_KEY).then((value) => {
+      if (!thresholdChanged) completionThreshold = normalizeCompletionThreshold(value?.[COMPLETION_THRESHOLD_KEY]);
+    }).catch(() => {});
 
     async function completed() {
       if (!completedPromise) completedPromise = storage.get(COMPLETED_KEY).then((value) => validCompleted(value?.[COMPLETED_KEY]) ? value[COMPLETED_KEY] : {});
@@ -104,7 +115,8 @@
           if (state.lastPlayback !== "playing") state.lastPlayback = null;
           return;
         }
-        const action = media.progress >= THRESHOLD ? "stop"
+        await thresholdReady;
+        const action = media.progress >= completionThreshold ? "stop"
           : media.state === "playing" && state.lastPlayback !== "playing" ? "start"
           : media.state !== "playing" && state.lastPlayback === "playing" ? "pause" : null;
         if (!action) { state.status = media.state === "playing" ? "scrobbling" : "paused"; state.lastPlayback = media.state; return; }
@@ -141,7 +153,11 @@
       completedPromise = Promise.resolve({});
     }
     function resume() { suspended = false; }
-    return { handle, statusFor, reset, resume };
+    function setCompletionThreshold(value) {
+      thresholdChanged = true;
+      completionThreshold = normalizeCompletionThreshold(value);
+    }
+    return { handle, statusFor, reset, resume, setCompletionThreshold };
   }
-  return { COMPLETED_KEY, THRESHOLD, MIN_SCROBBLE_PROGRESS, NEGATIVE_TTL, createScrobbleController };
+  return { COMPLETED_KEY, MIN_SCROBBLE_PROGRESS, NEGATIVE_TTL, createScrobbleController };
 });

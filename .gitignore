@@ -1,5 +1,7 @@
 AGENTS.md
 .pi/
+.agents/
+skills-lock.json
 
 # Local configuration and secrets
 .env*

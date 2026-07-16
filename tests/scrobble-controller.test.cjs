@@ -1,5 +1,6 @@
 const assert = require("node:assert/strict");
-const { createScrobbleController, COMPLETED_KEY, THRESHOLD, MIN_SCROBBLE_PROGRESS, NEGATIVE_TTL } = require("../playback/scrobble-controller.js");
+const { COMPLETION_THRESHOLD_KEY, DEFAULT_COMPLETION_THRESHOLD } = require("../shared/completion-threshold.js");
+const { createScrobbleController, COMPLETED_KEY, MIN_SCROBBLE_PROGRESS, NEGATIVE_TTL } = require("../playback/scrobble-controller.js");
 let stored = {};
 const storage = { async get(key) { return { [key]: stored[key] }; }, async set(value) { Object.assign(stored, value); } };
 const calls = [];
@@ -9,7 +10,7 @@ const source = (tabId, frameId = 0) => ({ tabId, frameId, url: `https://site${ta
 const status = (title, progress, state, tabId = 1, frameId = 0, extra = {}) => ({ kind: "media", source: source(tabId, frameId), media: { title, artist: null, album: null, duration: 100, progress, state, ...extra } });
 
 (async () => {
-  assert.equal(THRESHOLD, 90);
+  assert.equal(DEFAULT_COMPLETION_THRESHOLD, 90);
   assert.equal(MIN_SCROBBLE_PROGRESS, 1);
   const earlyCalls = [];
   const early = createScrobbleController({ matcher, client: { async scrobble(action) { earlyCalls.push(action); return { action }; } }, isConnected: async () => true, storage: { async get(){return{};},async set(){} } });
@@ -41,6 +42,74 @@ const status = (title, progress, state, tabId = 1, frameId = 0, extra = {}) => (
   assert.deepEqual(calls.slice(afterStop).map(({ action, id }) => [action, id]), [["stop", 1]], "completed items are never paused during winner replacement");
   await controller.handle({ kind: "empty" });
   assert.equal(controller.statusFor(source(2)).state, "idle");
+
+  const customStored = {};
+  const customCalls = [];
+  const custom = createScrobbleController({
+    matcher,
+    client: { async scrobble(action) { customCalls.push(action); } },
+    isConnected: async () => true,
+    storage: {
+      async get(key) { return { [key]: key === COMPLETION_THRESHOLD_KEY ? 85 : customStored[key] }; },
+      async set(value) { Object.assign(customStored, value); },
+    },
+    now: () => 5678,
+  });
+  await custom.handle(status("One", 84, "playing", 14));
+  assert.deepEqual(customCalls, ["start"], "stored 85 percent threshold does not stop at 84");
+  await custom.handle(status("One", 85, "playing", 14));
+  assert.deepEqual(customCalls, ["start", "stop"], "stored 85 percent threshold stops at 85");
+  assert.equal(customStored[COMPLETED_KEY]["movie:1"], 5678, "custom threshold persists completion");
+  assert.equal(custom.statusFor(source(14)).state, "synced");
+
+  const rejectedCalls = [];
+  const rejected = createScrobbleController({
+    matcher,
+    client: { async scrobble(action) { rejectedCalls.push(action); } },
+    isConnected: async () => true,
+    storage: {
+      async get(key) { if (key === COMPLETION_THRESHOLD_KEY) throw new Error("unavailable"); return {}; },
+      async set() {},
+    },
+  });
+  await rejected.handle(status("One", 89, "playing", 15));
+  await rejected.handle(status("One", 90, "playing", 15));
+  assert.deepEqual(rejectedCalls, ["start", "stop"], "threshold read failure falls back to 90");
+
+  let releaseThreshold;
+  const beforeCalls = [];
+  const before = createScrobbleController({
+    matcher,
+    client: { async scrobble(action) { beforeCalls.push(action); } },
+    isConnected: async () => true,
+    storage: {
+      get(key) {
+        if (key === COMPLETION_THRESHOLD_KEY) return new Promise((resolve) => { releaseThreshold = resolve; });
+        return Promise.resolve({});
+      },
+      async set() {},
+    },
+  });
+  before.setCompletionThreshold(85);
+  const beforeObservation = before.handle(status("One", 86, "playing", 16));
+  releaseThreshold({ [COMPLETION_THRESHOLD_KEY]: 99 });
+  await beforeObservation;
+  assert.deepEqual(beforeCalls, ["stop"], "change before initial threshold read wins");
+
+  const afterCalls = [];
+  const after = createScrobbleController({
+    matcher,
+    client: { async scrobble(action) { afterCalls.push(action); } },
+    isConnected: async () => true,
+    storage: {
+      async get(key) { return { [key]: key === COMPLETION_THRESHOLD_KEY ? 99 : undefined }; },
+      async set() {},
+    },
+  });
+  await after.handle(status("One", 84, "playing", 17));
+  after.setCompletionThreshold(85);
+  await after.handle(status("One", 85, "playing", 17));
+  assert.deepEqual(afterCalls, ["start", "stop"], "change after initial threshold read applies to the next observation");
 
   let time = 1000;
   let attempts = 0;

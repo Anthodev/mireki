@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Mireki",
-  "version": "0.8.5",
+  "version": "0.9.0",
   "description": "Displays current media playback and enables Trakt scrobbling.",
   "browser_specific_settings": {
     "gecko": {
@@ -28,6 +28,7 @@
       "shared/session-store.js",
       "trakt/trakt-client.js",
       "trakt/trakt-matcher.js",
+      "shared/completion-threshold.js",
       "playback/scrobble-controller.js",
       "background/auth-background.js",
       "background/scrobble-background.js",

@@ -15,6 +15,9 @@
 body { width: 22rem; margin: 0; background: var(--bg); color: var(--text); }
 main { padding: .75rem; }
 .message { margin: 0; padding: 1.25rem; border-radius: .75rem; background: var(--surface); color: var(--muted); text-align: center; line-height: 1.45; }
+.options-button { display: block; width: 100%; margin: .75rem 0 0; border: 0; border-radius: .55rem; padding: .65rem .9rem; background: var(--accent); color: #fff; font: inherit; font-size: .9rem; font-weight: 650; cursor: pointer; }
+.options-button:hover { background: color-mix(in srgb, var(--accent) 85%, #000); }
+.options-button:focus-visible { outline: 3px solid color-mix(in srgb, var(--accent) 45%, transparent); outline-offset: 2px; }
 .media-card { margin-top: 0; overflow: hidden; border-radius: .85rem; background: var(--surface); }
 .hero {
   position: relative;

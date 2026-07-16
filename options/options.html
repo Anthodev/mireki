@@ -8,10 +8,22 @@
 </head>
 <body>
   <main>
-    <header><img class="mark" src="../icons/mireki.svg" alt="" aria-hidden="true"><div><h1>Mireki</h1><p>Connect scrobbling services.</p></div></header>
+    <header><img class="mark" src="../icons/mireki.svg" alt="" aria-hidden="true"><div><h1>Mireki</h1><p>Configure scrobbling and connected services.</p></div></header>
     <section aria-labelledby="services-title">
       <h2 id="services-title">Services</h2>
       <div id="services" aria-live="polite"><p class="loading">Loading services…</p></div>
+    </section>
+    <section aria-labelledby="playback-title">
+      <h2 id="playback-title">Playback</h2>
+      <form id="completion-threshold-form" class="setting-card">
+        <div class="setting-heading">
+          <label for="completion-threshold">Watched threshold</label>
+          <output id="completion-threshold-value" for="completion-threshold" aria-live="polite">90%</output>
+        </div>
+        <input id="completion-threshold" type="range" min="80" max="100" step="1" value="90" aria-describedby="completion-threshold-help" disabled>
+        <p id="completion-threshold-help" class="setting-help">Mark media as watched after this percentage has played.</p>
+        <button id="save-completion-threshold" type="submit" disabled>Save threshold</button>
+      </form>
     </section>
     <p id="notice" role="status"></p>
   </main>
@@ -21,6 +33,7 @@
       <button type="button"></button>
     </article>
   </template>
+  <script src="../shared/completion-threshold.js"></script>
   <script src="options-status.js"></script>
   <script src="options.js"></script>
 </body>

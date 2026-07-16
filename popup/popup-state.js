@@ -26,6 +26,7 @@ function setArtwork(element, artwork) {
 function renderState(state, elements) {
   elements.details.hidden = state.kind !== "media";
   elements.message.hidden = state.kind === "media";
+  if (elements.optionsButton) elements.optionsButton.hidden = state.kind !== "empty";
   if (state.kind !== "media") {
     setArtwork(elements.artwork, null);
     elements.message.textContent = state.kind === "empty" ? "No media detected in open web tabs." : "Playback status unavailable.";

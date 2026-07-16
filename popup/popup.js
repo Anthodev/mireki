@@ -1,5 +1,6 @@
 const elements = {
   message: document.querySelector("#message"),
+  optionsButton: document.querySelector("#open-options"),
   details: document.querySelector("#details"),
   artwork: document.querySelector("#media-artwork"),
   title: document.querySelector("#media-title"),
@@ -15,6 +16,9 @@ const elements = {
 elements.artwork.addEventListener("error", () => {
   elements.artwork.hidden = true;
   elements.artwork.removeAttribute("src");
+});
+elements.optionsButton.addEventListener("click", () => {
+  browser.runtime.openOptionsPage().catch(() => {});
 });
 
 async function refresh() {
