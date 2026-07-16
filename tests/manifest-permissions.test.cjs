@@ -7,11 +7,17 @@ const expected = [
   "https://*.netflix.com/*",
   "https://*.primevideo.com/*",
 ];
-assert.deepEqual(manifest.host_permissions, [...expected, "https://api.trakt.tv/*"]);
+assert.deepEqual(manifest.host_permissions, [
+  ...expected,
+  "https://api.trakt.tv/*",
+  "https://mireki-auth-colif.bunny.run/*",
+]);
 const observedMatches = manifest.content_scripts.flatMap((entry) => entry.matches);
 assert.deepEqual([...observedMatches].sort(), [...expected].sort());
 assert.equal(new Set(observedMatches).size, expected.length, "provider matches are declared exactly once");
 assert.ok(manifest.content_scripts.every((entry) => entry.all_frames === true));
+assert.ok(manifest.content_scripts.every((entry) => entry.js[0] === "shared/webextension-api.js"),
+  "WebExtension compatibility loads before content scripts");
 const netflixScript = manifest.content_scripts.find((entry) => entry.matches.includes("https://*.netflix.com/*"));
 assert.deepEqual(netflixScript.matches, ["https://*.netflix.com/*"]);
 assert.ok(netflixScript.js.includes("providers/netflix.js"), "Netflix adapter loads on Netflix");
@@ -31,6 +37,7 @@ assert.deepEqual(PROVIDER_HOSTS, expected.filter((pattern) => pattern.includes("
 assert.equal(expected.some((pattern) => pattern.includes("<all_urls>") || pattern.startsWith("http://") || pattern === "https://*/*"), false);
 assert.equal(expected.some((pattern) => pattern.includes("amazon.")), false, "retail Amazon domains stay excluded");
 const scripts = manifest.background.scripts;
+assert.equal(scripts[0], "shared/webextension-api.js", "WebExtension compatibility loads before background scripts");
 assert.ok(scripts.indexOf("shared/episode-label.js") < scripts.indexOf("trakt/trakt-matcher.js"),
   "episode parser loads before Trakt matcher");
 assert.ok(scripts.indexOf("shared/completion-threshold.js") < scripts.indexOf("playback/scrobble-controller.js"),

@@ -14,7 +14,7 @@ function trustedExtensionPage(sender) {
   return sender?.id === browser.runtime.id && url?.startsWith(browser.runtime.getURL(""));
 }
 
-browser.runtime.onMessage.addListener((message, sender) => {
+MirekiWebExtension.addMessageListener((message, sender) => {
   if (!trustedExtensionPage(sender) || !message || typeof message.type !== "string") return undefined;
   if (message.type === "auth:list") return Promise.all([...authServices.values()].map((service) => service.status()));
   if ((message.type === "auth:connect" || message.type === "auth:disconnect") && typeof message.serviceId === "string") {

@@ -18,7 +18,8 @@
       await browser.storage.local.remove(MirekiScrobbleController.COMPLETED_KEY);
     },
   });
-  browser.storage.local.onChanged.addListener((changes) => {
+  browser.storage.onChanged.addListener((changes, areaName) => {
+    if (areaName !== "local") return;
     const change = changes[MirekiCompletionThreshold.COMPLETION_THRESHOLD_KEY];
     if (change) controller.setCompletionThreshold(change.newValue);
   });

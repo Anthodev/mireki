@@ -16,7 +16,7 @@ function setup({ initialToken = null, failRevoke = false, now = () => 1000_000 }
     identity: { getRedirectURL: () => "https://ext.test/oauth", async launchWebAuthFlow({ url }) { return `https://ext.test/oauth?code=once&state=${new URL(url).searchParams.get("state")}`; } },
     async fetch(url, init) {
       const body = JSON.parse(init.body); requests.push({ url, body });
-      if (url.endsWith("/start")) return { ok: true, json: async () => ({ authorizationUrl: `https://trakt.tv/oauth/authorize?state=${body.state}` }) };
+      if (url.endsWith("/start")) return { ok: true, json: async () => ({ authorizationUrl: "https://trakt.tv/oauth/authorize?state=broker-state" }) };
       if (url.endsWith("/revoke")) return { ok: !failRevoke, json: async () => failRevoke ? null : ({ ok: true }) };
       return { ok: true, json: async () => rawToken };
     },
@@ -28,6 +28,17 @@ function setup({ initialToken = null, failRevoke = false, now = () => 1000_000 }
   const connected = setup();
   assert.equal((await connected.auth.connect()).connected, true);
   assert.deepEqual(connected.stored(), expectedToken, "connect persists allowlisted fields only");
+  assert.deepEqual(connected.requests.map(({ url }) => url.split("/").pop()), ["start", "exchange"]);
+  assert.deepEqual(connected.requests[0].body, {
+    clientId: "client",
+    redirectUri: "https://ext.test/oauth",
+    state: "01".repeat(32),
+  });
+  assert.deepEqual(connected.requests[1].body, {
+    code: "once",
+    redirectUri: "https://ext.test/oauth",
+    state: "broker-state",
+  });
 
   const fresh = setup({ initialToken: expectedToken, now: () => 1001_000 });
   assert.equal((await fresh.auth.disconnect()).revocationFailed, false);

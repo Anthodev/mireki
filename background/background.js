@@ -14,7 +14,7 @@ async function processSelection() {
   return status;
 }
 
-browser.runtime.onMessage.addListener((message, sender) => {
+MirekiWebExtension.addMessageListener((message, sender) => {
   if (message?.type === MirekiSessions.OBSERVATION) {
     const accepted = store.ingest(message, sender);
     if (!accepted) return Promise.resolve({ accepted: false });

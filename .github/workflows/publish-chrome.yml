@@ -1,0 +1,206 @@
+name: Publish Chrome
+run-name: Chrome ${{ inputs.operation }} ${{ inputs.tag }}
+
+on:
+  workflow_call:
+    inputs:
+      tag:
+        required: true
+        type: string
+      operation:
+        required: false
+        default: upload-and-submit
+        type: string
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Stable release tag to publish
+        required: true
+        type: string
+      operation:
+        description: Upload a new package or resume submission after a completed upload
+        required: true
+        default: upload-and-submit
+        type: choice
+        options:
+          - upload-and-submit
+          - resume-submit
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: chrome-publish
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    if: vars.ENABLE_CHROME_PUBLISH == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: chrome-web-store
+    steps:
+      - name: Check out tagged revision
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: refs/tags/${{ inputs.tag }}
+
+      - name: Set up Node.js
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version: 24
+
+      - name: Validate stable tag
+        id: release
+        env:
+          RELEASE_TAG: ${{ inputs.tag }}
+        shell: bash
+        run: |
+          if [[ ! "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "Expected a stable tag, got: $RELEASE_TAG" >&2
+            exit 1
+          fi
+          version="$(node -p "require('./manifest.json').version")"
+          if [[ "v$version" != "$RELEASE_TAG" ]]; then
+            echo "Tag $RELEASE_TAG does not match manifest version $version" >&2
+            exit 1
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      - name: Generate Chrome target
+        run: node tools/build-extension.cjs chrome
+
+      - name: Build Chrome package
+        run: >-
+          npx --yes web-ext@10.5.0 build
+          --source-dir build/chrome
+          --artifacts-dir web-ext-artifacts
+          --filename mireki-chrome-${{ steps.release.outputs.version }}.zip
+          --overwrite-dest
+
+      - name: Check Chrome Web Store configuration
+        env:
+          WORKLOAD_IDENTITY_PROVIDER: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          SERVICE_ACCOUNT: ${{ vars.CWS_SERVICE_ACCOUNT }}
+          PUBLISHER_ID: ${{ vars.CWS_PUBLISHER_ID }}
+          EXTENSION_ID: ${{ vars.CWS_EXTENSION_ID }}
+        shell: bash
+        run: |
+          test -n "$WORKLOAD_IDENTITY_PROVIDER"
+          test -n "$SERVICE_ACCOUNT"
+          [[ "$PUBLISHER_ID" =~ ^[A-Za-z0-9._-]+$ ]]
+          [[ "$EXTENSION_ID" =~ ^[a-p]{32}$ ]]
+
+      # Service-account CI authentication is documented at:
+      # https://developer.chrome.com/docs/webstore/service-accounts
+      - name: Authenticate to Google Cloud
+        id: auth
+        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3
+        with:
+          workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ vars.CWS_SERVICE_ACCOUNT }}
+          token_format: access_token
+          access_token_scopes: https://www.googleapis.com/auth/chromewebstore
+          create_credentials_file: false
+
+      # Upload and publish endpoints follow Chrome Web Store API v2:
+      # https://developer.chrome.com/docs/webstore/using-api#example-http-requests
+      - name: Upload and submit Chrome version
+        env:
+          ACCESS_TOKEN: ${{ steps.auth.outputs.access_token }}
+          CWS_PUBLISHER_ID: ${{ vars.CWS_PUBLISHER_ID }}
+          CWS_EXTENSION_ID: ${{ vars.CWS_EXTENSION_ID }}
+          EXPECTED_VERSION: ${{ steps.release.outputs.version }}
+          OPERATION: ${{ inputs.operation }}
+          PACKAGE: web-ext-artifacts/mireki-chrome-${{ steps.release.outputs.version }}.zip
+        shell: bash
+        run: |
+          set -euo pipefail
+          item="publishers/$CWS_PUBLISHER_ID/items/$CWS_EXTENSION_ID"
+          api="https://chromewebstore.googleapis.com"
+          authorization="Authorization: Bearer $ACCESS_TOKEN"
+
+          fetch_status() {
+            curl --fail-with-body --silent --show-error \
+              --header "$authorization" \
+              "$api/v2/$item:fetchStatus" \
+              --output /tmp/cws-status.json
+          }
+          expected_revision_exists() {
+            node -e '
+              const status = JSON.parse(require("node:fs").readFileSync("/tmp/cws-status.json"));
+              const revisions = [status.publishedItemRevisionStatus, status.submittedItemRevisionStatus];
+              const versions = revisions.flatMap((revision) => revision?.distributionChannels?.map((channel) => channel.crxVersion) || []);
+              process.exit(versions.includes(process.env.EXPECTED_VERSION) ? 0 : 1);
+            '
+          }
+          other_submission_exists() {
+            node -e '
+              const status = JSON.parse(require("node:fs").readFileSync("/tmp/cws-status.json"));
+              const versions = status.submittedItemRevisionStatus?.distributionChannels?.map((channel) => channel.crxVersion) || [];
+              process.exit(versions.length && !versions.includes(process.env.EXPECTED_VERSION) ? 0 : 1);
+            '
+          }
+
+          fetch_status
+          if expected_revision_exists; then
+            echo "Chrome Web Store already contains version $EXPECTED_VERSION."
+            exit 0
+          fi
+          if other_submission_exists; then
+            echo "Another Chrome Web Store version is already submitted." >&2
+            exit 1
+          fi
+
+          if [[ "$OPERATION" == "upload-and-submit" ]]; then
+            curl --fail-with-body --silent --show-error \
+              --request POST \
+              --header "$authorization" \
+              --header "Content-Type: application/zip" \
+              --data-binary "@$PACKAGE" \
+              "$api/upload/v2/$item:upload" \
+              --output /tmp/cws-upload.json
+            state="$(node -p "JSON.parse(require('node:fs').readFileSync('/tmp/cws-upload.json')).uploadState")"
+          else
+            state="$(node -p "JSON.parse(require('node:fs').readFileSync('/tmp/cws-status.json')).lastAsyncUploadState || 'NOT_FOUND'")"
+          fi
+
+          for attempt in {1..30}; do
+            case "$state" in
+              SUCCEEDED|UPLOAD_SUCCESS) break ;;
+              IN_PROGRESS|UPLOAD_IN_PROGRESS)
+                sleep 10
+                fetch_status
+                state="$(node -p "JSON.parse(require('node:fs').readFileSync('/tmp/cws-status.json')).lastAsyncUploadState")"
+                ;;
+              *)
+                echo "Chrome Web Store upload failed with state: $state" >&2
+                node -e "const fs=require('node:fs'); const path=fs.existsSync('/tmp/cws-status.json')?'/tmp/cws-status.json':'/tmp/cws-upload.json'; console.error(JSON.stringify(JSON.parse(fs.readFileSync(path))))"
+                exit 1
+                ;;
+            esac
+          done
+          if [[ "$state" != "SUCCEEDED" && "$state" != "UPLOAD_SUCCESS" ]]; then
+            echo "Chrome Web Store upload timed out with state: $state" >&2
+            exit 1
+          fi
+
+          curl --fail-with-body --silent --show-error \
+            --request POST \
+            --header "$authorization" \
+            --header "Content-Type: application/json" \
+            --data '{"blockOnWarnings":true}' \
+            "$api/v2/$item:publish" \
+            --output /tmp/cws-publish.json
+
+          for attempt in {1..12}; do
+            fetch_status
+            if expected_revision_exists; then
+              echo "Chrome Web Store version $EXPECTED_VERSION submitted for review."
+              exit 0
+            fi
+            sleep 5
+          done
+          echo "Chrome Web Store did not report submitted version $EXPECTED_VERSION." >&2
+          exit 1

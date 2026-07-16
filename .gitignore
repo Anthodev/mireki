@@ -12,6 +12,7 @@ skills-lock.json
 *.pfx
 *.crt
 *.cer
+gha-creds-*.json
 
 # Packages and archives
 *.xpi

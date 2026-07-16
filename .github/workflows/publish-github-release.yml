@@ -1,0 +1,100 @@
+name: Publish GitHub release
+run-name: GitHub publish ${{ inputs.tag }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Release tag whose draft should be published
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+concurrency:
+  group: github-publish-${{ inputs.tag }}
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: github-releases
+    steps:
+      - name: Check out tagged revision
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: refs/tags/${{ inputs.tag }}
+
+      - name: Set up Node.js
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version: 24
+
+      - name: Validate tag and manifest version
+        id: release
+        env:
+          RELEASE_TAG: ${{ inputs.tag }}
+        shell: bash
+        run: |
+          if [[ ! "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-(alpha|beta|rc)\.[0-9]+)?$ ]]; then
+            echo "Unsupported release tag: $RELEASE_TAG" >&2
+            exit 1
+          fi
+          tag_version="${RELEASE_TAG#v}"
+          manifest_version="$(node -p "require('./manifest.json').version")"
+          if [[ "${tag_version%%-*}" != "$manifest_version" ]]; then
+            echo "Tag $RELEASE_TAG does not match manifest version $manifest_version" >&2
+            exit 1
+          fi
+          prerelease=false
+          if [[ "$tag_version" == *-* ]]; then prerelease=true; fi
+          echo "version=$tag_version" >> "$GITHUB_OUTPUT"
+          echo "prerelease=$prerelease" >> "$GITHUB_OUTPUT"
+
+      - name: Inspect GitHub release
+        id: github_release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ inputs.tag }}
+          EXPECTED_PRERELEASE: ${{ steps.release.outputs.prerelease }}
+        shell: bash
+        run: |
+          status="$(gh release view "$RELEASE_TAG" --json isDraft,isPrerelease)"
+          draft="$(node -pe 'JSON.parse(process.argv[1]).isDraft' "$status")"
+          prerelease="$(node -pe 'JSON.parse(process.argv[1]).isPrerelease' "$status")"
+          if [[ "$prerelease" != "$EXPECTED_PRERELEASE" ]]; then
+            echo "GitHub release prerelease state does not match tag $RELEASE_TAG" >&2
+            exit 1
+          fi
+          echo "draft=$draft" >> "$GITHUB_OUTPUT"
+
+      - name: Validate GitHub release archives
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ inputs.tag }}
+        shell: bash
+        run: |
+          mkdir -p /tmp/release-assets
+          for asset in \
+            "mireki-firefox-${{ steps.release.outputs.version }}.zip" \
+            "mireki-chrome-${{ steps.release.outputs.version }}.zip"; do
+            gh release download "$RELEASE_TAG" \
+              --pattern "$asset" \
+              --dir /tmp/release-assets
+            unzip -t "/tmp/release-assets/$asset"
+          done
+
+      - name: Publish GitHub release
+        if: steps.github_release.outputs.draft == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ inputs.tag }}
+        shell: bash
+        run: |
+          options=(--draft=false)
+          if [[ "${{ steps.release.outputs.prerelease }}" == "false" ]]; then
+            options+=(--latest)
+          fi
+          gh release edit "$RELEASE_TAG" "${options[@]}"

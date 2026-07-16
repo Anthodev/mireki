@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Mireki",
-  "version": "0.9.0",
+  "version": "0.10.0",
   "description": "Displays current media playback and enables Trakt scrobbling.",
   "browser_specific_settings": {
     "gecko": {
@@ -16,10 +16,12 @@
     "https://*.crunchyroll.com/*",
     "https://*.netflix.com/*",
     "https://*.primevideo.com/*",
-    "https://api.trakt.tv/*"
+    "https://api.trakt.tv/*",
+    "https://mireki-auth-colif.bunny.run/*"
   ],
   "background": {
     "scripts": [
+      "shared/webextension-api.js",
       "config/auth-config.js",
       "auth/token-store.js",
       "services/trakt-auth.js",
@@ -40,6 +42,7 @@
       "matches": ["https://*.crunchyroll.com/*"],
       "all_frames": true,
       "js": [
+        "shared/webextension-api.js",
         "shared/artwork-url.js",
         "playback/media-snapshot.js",
         "content/media-observer.js"
@@ -49,6 +52,7 @@
       "matches": ["https://*.primevideo.com/*"],
       "all_frames": true,
       "js": [
+        "shared/webextension-api.js",
         "shared/artwork-url.js",
         "shared/episode-label.js",
         "playback/media-snapshot.js",
@@ -60,6 +64,7 @@
       "matches": ["https://*.netflix.com/*"],
       "all_frames": true,
       "js": [
+        "shared/webextension-api.js",
         "shared/artwork-url.js",
         "shared/episode-label.js",
         "playback/media-snapshot.js",

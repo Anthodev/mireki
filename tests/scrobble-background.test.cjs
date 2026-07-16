@@ -28,18 +28,20 @@ global.browser = {
       async get() { return {}; },
       async set() {},
       async remove() {},
-      onChanged: { addListener(listener) { onStorageChanged = listener; } },
     },
+    onChanged: { addListener(listener) { onStorageChanged = listener; } },
   },
 };
 global.fetch = async () => {};
 
 require("../background/scrobble-background.js");
 assert.equal(typeof onStorageChanged, "function");
-onStorageChanged({ [COMPLETION_THRESHOLD_KEY]: { oldValue: 90, newValue: 85 } });
+onStorageChanged({ [COMPLETION_THRESHOLD_KEY]: { oldValue: 90, newValue: 85 } }, "local");
 assert.deepEqual(thresholdChanges, [85], "threshold change refreshes the controller once");
-onStorageChanged({ [COMPLETION_THRESHOLD_KEY]: { oldValue: 85 } });
+onStorageChanged({ [COMPLETION_THRESHOLD_KEY]: { oldValue: 85 } }, "local");
 assert.deepEqual(thresholdChanges, [85, undefined], "threshold removal restores the default");
-onStorageChanged({ "unrelated.key": { newValue: true } });
+onStorageChanged({ "unrelated.key": { newValue: true } }, "local");
 assert.deepEqual(thresholdChanges, [85, undefined], "unrelated storage changes are ignored");
+onStorageChanged({ [COMPLETION_THRESHOLD_KEY]: { newValue: 95 } }, "sync");
+assert.deepEqual(thresholdChanges, [85, undefined], "non-local storage changes are ignored");
 console.log("scrobble background checks: OK");

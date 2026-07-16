@@ -7,6 +7,7 @@
   const SERVICE_LABEL = "Trakt";
   const MAX_TOKEN_LENGTH = 4096;
   const MAX_SCOPE_LENGTH = 1024;
+  const MAX_STATE_LENGTH = 2048;
   const bounded = (value, max = MAX_TOKEN_LENGTH) => typeof value === "string" && value.length > 0 && value.length <= max;
   const httpsUrl = (value) => {
     try { const url = new URL(value); return url.protocol === "https:" && !url.username && !url.password ? url : null; } catch { return null; }
@@ -62,13 +63,16 @@
       const state = randomState(crypto);
       const start = await post("v1/oauth/trakt/start", { clientId: config.traktClientId, redirectUri, state });
       const authorizationUrl = httpsUrl(start.authorizationUrl);
+      const authorizationState = authorizationUrl?.searchParams.get("state");
       if (!authorizationUrl || authorizationUrl.origin !== "https://trakt.tv" || authorizationUrl.pathname !== "/oauth/authorize"
-        || authorizationUrl.searchParams.get("state") !== state) throw new Error("Invalid authorization URL");
+        || !bounded(authorizationState, MAX_STATE_LENGTH)) throw new Error("Invalid authorization URL");
       const redirected = new URL(await identity.launchWebAuthFlow({ url: authorizationUrl.href, interactive: true }));
       const expected = new URL(redirectUri);
       if (redirected.origin !== expected.origin || redirected.pathname !== expected.pathname
-        || redirected.searchParams.get("state") !== state || !bounded(redirected.searchParams.get("code"), 512)) throw new Error("Invalid OAuth redirect");
-      const token = await persistResponse(await post("v1/oauth/trakt/exchange", { code: redirected.searchParams.get("code"), redirectUri }), "Invalid OAuth token response");
+        || redirected.searchParams.get("state") !== authorizationState || !bounded(redirected.searchParams.get("code"), 512)) throw new Error("Invalid OAuth redirect");
+      const token = await persistResponse(await post("v1/oauth/trakt/exchange", {
+        code: redirected.searchParams.get("code"), redirectUri, state: authorizationState,
+      }), "Invalid OAuth token response");
       return publicStatus(token, true);
     }
     async function disconnect() {

@@ -19,6 +19,7 @@ global.browser = {
   } },
   identity: {},
 };
+require("../shared/webextension-api.js");
 let resetFinished = false;
 let resumed = false;
 global.MirekiScrobble = { async reset() { await Promise.resolve(); resetFinished = true; }, resume() { resumed = true; } };

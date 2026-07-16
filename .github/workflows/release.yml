@@ -66,58 +66,36 @@ jobs:
 
       - name: Check JavaScript syntax
         run: find auth background config content options playback popup providers services shared trakt -name '*.js' -print0 | xargs -0 -n1 node --check
+      - name: Check build script syntax
+        run: node --check tools/build-extension.cjs
+
 
       - name: Check manifest assets
         run: node -e "const fs=require('node:fs'); const m=JSON.parse(fs.readFileSync('manifest.json')); for(const p of [m.action.default_popup,...Object.values(m.icons),...m.background.scripts,...m.content_scripts.flatMap(x=>x.js)]) fs.accessSync(p)"
+      - name: Generate browser targets
+        run: node tools/build-extension.cjs
 
-      - name: Lint extension
-        run: npx --yes web-ext@10.5.0 lint --source-dir .
 
-      - name: Build extension package
+      - name: Lint Firefox extension
+        run: npx --yes web-ext@10.5.0 lint --source-dir build/firefox
+
+      - name: Build browser packages
         shell: bash
         run: |
           npx --yes web-ext@10.5.0 build \
-            --source-dir . \
+            --source-dir build/firefox \
             --artifacts-dir web-ext-artifacts \
-            --filename "mireki-${{ steps.release.outputs.version }}.zip" \
-            --overwrite-dest \
-            --ignore-files ".github" ".github/**" ".pi" ".pi/**" ".jj" ".jj/**" ".git" ".git/**" "tests" "tests/**" "web-ext-artifacts" "web-ext-artifacts/**" "AGENTS.md" "README.md" ".gitignore" ".env*" "*.key" "*.pem" "*.p12" "*.pfx" "*.crt" "*.cer"
-          unzip -t "web-ext-artifacts/mireki-${{ steps.release.outputs.version }}.zip"
+            --filename "mireki-firefox-${{ steps.release.outputs.version }}.zip" \
+            --overwrite-dest
+          npx --yes web-ext@10.5.0 build \
+            --source-dir build/chrome \
+            --artifacts-dir web-ext-artifacts \
+            --filename "mireki-chrome-${{ steps.release.outputs.version }}.zip" \
+            --overwrite-dest
+          unzip -t "web-ext-artifacts/mireki-firefox-${{ steps.release.outputs.version }}.zip"
+          unzip -t "web-ext-artifacts/mireki-chrome-${{ steps.release.outputs.version }}.zip"
 
 
-      - name: Check AMO credentials
-        env:
-          WEB_EXT_API_KEY: ${{ secrets.AMO_API_KEY }}
-          WEB_EXT_API_SECRET: ${{ secrets.AMO_API_SECRET }}
-        run: test -n "$WEB_EXT_API_KEY" && test -n "$WEB_EXT_API_SECRET"
-
-      - name: Submit stable release to AMO
-        if: steps.release.outputs.prerelease == 'false'
-        env:
-          WEB_EXT_API_KEY: ${{ secrets.AMO_API_KEY }}
-          WEB_EXT_API_SECRET: ${{ secrets.AMO_API_SECRET }}
-        run: >-
-          npx --yes web-ext@10.5.0 sign
-          --source-dir .
-          --channel listed
-          --amo-metadata .github/amo-metadata.json
-          --approval-timeout 0
-          --no-input
-          --ignore-files ".github" ".github/**" ".pi" ".pi/**" ".jj" ".jj/**" ".git" ".git/**" "tests" "tests/**" "web-ext-artifacts" "web-ext-artifacts/**" "AGENTS.md" "README.md" ".gitignore" ".env*" "*.key" "*.pem" "*.p12" "*.pfx" "*.crt" "*.cer"
-
-      - name: Sign prerelease for self-distribution
-        if: steps.release.outputs.prerelease == 'true'
-        env:
-          WEB_EXT_API_KEY: ${{ secrets.AMO_API_KEY }}
-          WEB_EXT_API_SECRET: ${{ secrets.AMO_API_SECRET }}
-        run: >-
-          npx --yes web-ext@10.5.0 sign
-          --source-dir .
-          --channel unlisted
-          --artifacts-dir web-ext-artifacts
-          --approval-timeout 900000
-          --no-input
-          --ignore-files ".github" ".github/**" ".pi" ".pi/**" ".jj" ".jj/**" ".git" ".git/**" "tests" "tests/**" "web-ext-artifacts" "web-ext-artifacts/**" "AGENTS.md" "README.md" ".gitignore" ".env*" "*.key" "*.pem" "*.p12" "*.pfx" "*.crt" "*.cer"
 
       - name: Generate release notes
         shell: bash
@@ -137,28 +115,40 @@ jobs:
             printf '\n\n**Full changelog**: %s\n' "$changelog_url"
           } > release-notes.md
 
-      - name: Create stable GitHub draft
-        if: steps.release.outputs.prerelease == 'false'
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: >-
-          gh release create "$GITHUB_REF_NAME"
-          "web-ext-artifacts/mireki-${{ steps.release.outputs.version }}.zip#Firefox extension ZIP (temporary manual loading)"
-          --draft
-          --notes-file release-notes.md
-          --verify-tag
-
-      - name: Create GitHub prerelease
-        if: steps.release.outputs.prerelease == 'true'
+      - name: Create GitHub release draft
         env:
           GH_TOKEN: ${{ github.token }}
         shell: bash
         run: |
-          xpi="$(find web-ext-artifacts -maxdepth 1 -type f -name '*.xpi' -print -quit)"
-          test -n "$xpi"
+          options=(--draft)
+          if [[ "${{ steps.release.outputs.prerelease }}" == "true" ]]; then
+            options+=(--prerelease)
+          fi
           gh release create "$GITHUB_REF_NAME" \
-            "web-ext-artifacts/mireki-${{ steps.release.outputs.version }}.zip#Firefox extension ZIP (temporary manual loading)" \
-            "$xpi#Signed Firefox extension" \
-            --prerelease \
+            "web-ext-artifacts/mireki-firefox-${{ steps.release.outputs.version }}.zip#Firefox extension ZIP (temporary manual loading)" \
+            "web-ext-artifacts/mireki-chrome-${{ steps.release.outputs.version }}.zip#Chrome extension ZIP (developer mode)" \
+            "${options[@]}" \
             --notes-file release-notes.md \
             --verify-tag
+
+  publish-firefox:
+    needs: release
+    permissions:
+      contents: write
+    uses: ./.github/workflows/publish-firefox.yml
+    with:
+      tag: ${{ github.ref_name }}
+      operation: submit
+    secrets: inherit
+
+  publish-chrome:
+    needs: release
+    if: vars.ENABLE_CHROME_PUBLISH == 'true' && !contains(github.ref_name, '-')
+    permissions:
+      contents: read
+      id-token: write
+    uses: ./.github/workflows/publish-chrome.yml
+    with:
+      tag: ${{ github.ref_name }}
+      operation: upload-and-submit
+    secrets: inherit

@@ -46,45 +46,54 @@ Mireki can resolve an episode from a unique canonical or translated title within
 
 ## Privacy and permissions
 
-Continuous playback detection requires access to the supported streaming domains listed above. Mireki does not request access to unrelated websites, generic Amazon retail pages, HTTP, local files, or FTP.
+Continuous playback detection requires access to the supported streaming domains listed above. Trakt connection and scrobbling use only the configured Mireki OAuth broker and `api.trakt.tv`. Mireki does not request access to unrelated websites, generic Amazon retail pages, HTTP, local files, or FTP.
 
-Raw tab and frame observations remain local and expire quickly. When Trakt is connected, only the selected title or episode metadata, Trakt identifiers, and playback progress needed for matching and scrobbling are sent to Trakt. OAuth tokens stay in Firefox extension storage and are never exposed to streaming pages, the popup, or logs.
+Raw tab and frame observations remain local and expire quickly. When Trakt is connected, only the selected title or episode metadata, Trakt identifiers, and playback progress needed for matching and scrobbling are sent to Trakt. OAuth tokens stay in browser extension storage and are never exposed to streaming pages, the popup, or logs.
 
-Disconnecting removes local credentials and Mireki's local completion state, while also attempting to revoke remote Trakt access. Firefox extension storage is controlled by the extension but is not encrypted against someone with access to the local Firefox profile or operating system account.
+Disconnecting removes local credentials and Mireki's local completion state, while also attempting to revoke remote Trakt access. Browser extension storage is controlled by the extension but is not encrypted against someone with access to the local browser profile or operating system account.
 
-## Install without Firefox Add-ons
+## Install from GitHub releases
 
-If you prefer not to install Mireki from the official Firefox Add-ons store, download the Mozilla-signed `.xpi` file from the matching [GitHub release](https://github.com/Anthodev/mireki/releases) and open it with Firefox. It provides the same extension without going through the store page.
+Firefox users can download the Mozilla-signed `.xpi` file from the matching [GitHub release](https://github.com/Anthodev/mireki/releases) and open it with Firefox.
 
-Each release also includes a ZIP archive. Changing its `.zip` extension to `.xpi` turns it into an unsigned XPI without changing its contents. This unsigned version is intended for temporary loading through `about:debugging` and is removed when Firefox closes. Permanent installation on standard Firefox still requires the Mozilla-signed XPI.
+Releases also include browser-specific ZIP archives. The Firefox ZIP supports temporary loading through `about:debugging`; permanent Firefox installation requires the Mozilla-signed XPI. The Chrome ZIP supports **Load unpacked** developer mode after extraction and is not a Chrome Web Store package.
 
-## Development and Firefox debugging
+## Development and browser debugging
 
-Mireki uses native JavaScript and does not require a build step or runtime dependencies.
-
-### Temporary installation
-
-1. Open `about:debugging` in Firefox.
-2. Select **This Firefox**.
-3. Choose **Load Temporary Add-on…**.
-4. Select this repository's `manifest.json`.
-5. Accept access to the supported streaming services, then pin Mireki to the toolbar.
-
-Firefox removes temporary extensions when the browser closes.
-
-### Run with web-ext
-
-With Node.js 24 or newer:
+Mireki uses native JavaScript and has no runtime dependencies. Node.js 24 or newer generates isolated browser targets:
 
 ```sh
-npx --yes web-ext@10.5.0 run --source-dir .
+node tools/build-extension.cjs
 ```
+
+This creates ignored `build/firefox` and `build/chrome` directories. Regenerate the target after source changes; `web-ext` then reloads the updated output.
+
+### Firefox
+
+Run a temporary Firefox profile:
+
+```sh
+npx --yes web-ext@10.5.0 run --source-dir build/firefox --devtools
+```
+
+For manual loading, open `about:debugging`, select **This Firefox**, choose **Load Temporary Add-on…**, and select `build/firefox/manifest.json`. Firefox removes temporary extensions when the browser closes.
+
+### Chrome
+
+Run Chrome or Chromium:
+
+```sh
+npx --yes web-ext@10.5.0 run --target chromium --source-dir build/chrome
+```
+
+Use `--chromium-binary google-chrome` when automatic browser discovery does not select the intended executable. For manual loading, open `chrome://extensions`, enable **Developer mode**, choose **Load unpacked**, and select `build/chrome`.
 
 ### Run project checks
 
 ```sh
 node --test
-npx --yes web-ext@10.5.0 lint --source-dir .
+node tools/build-extension.cjs
+npx --yes web-ext@10.5.0 lint --source-dir build/firefox
 ```
 
 ## License

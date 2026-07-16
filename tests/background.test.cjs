@@ -33,6 +33,7 @@ global.browser = {
     onAlarm: { addListener(listener) { onAlarm = listener; } },
   },
 };
+require("../shared/webextension-api.js");
 require("../background/background.js");
 const media = (title, state = "playing") => ({ kind: "video", title, artist: null, album: null, artwork: null, currentTime: 5, duration: 10, state, progress: 50 });
 const sender = (tabId, frameId = 0) => { const url = `https://site${tabId}.crunchyroll.com/watch`; return { id: browser.runtime.id, frameId, url, tab: { id: tabId, url } }; };

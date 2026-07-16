@@ -26,9 +26,15 @@ jobs:
 
       - name: Check JavaScript syntax
         run: find auth background config content options playback popup providers services shared trakt -name '*.js' -print0 | xargs -0 -n1 node --check
+      - name: Check build script syntax
+        run: node --check tools/build-extension.cjs
+
 
       - name: Check manifest assets
         run: node -e "const fs=require('node:fs'); const m=JSON.parse(fs.readFileSync('manifest.json')); for(const p of [m.action.default_popup,...Object.values(m.icons),...m.background.scripts,...m.content_scripts.flatMap(x=>x.js)]) fs.accessSync(p)"
+      - name: Generate browser targets
+        run: node tools/build-extension.cjs
 
-      - name: Lint extension
-        run: npx --yes web-ext@10.5.0 lint --source-dir .
+
+      - name: Lint Firefox extension
+        run: npx --yes web-ext@10.5.0 lint --source-dir build/firefox
