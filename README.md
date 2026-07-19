@@ -66,6 +66,15 @@ Mireki uses native JavaScript and has no runtime dependencies. Node.js 24 or new
 node tools/build-extension.cjs
 ```
 
+Or generate one target with the optional `just` command runner:
+
+```sh
+just build-firefox
+just build-chrome
+just build-firefox-zip
+just build-chrome-zip
+```
+
 This creates ignored `build/firefox` and `build/chrome` directories. Regenerate the target after source changes; `web-ext` then reloads the updated output.
 
 ### Firefox

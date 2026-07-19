@@ -53,7 +53,10 @@
       return token;
     }
     async function refresh(token) {
-      return persistResponse(await post("v1/oauth/trakt/refresh", { refreshToken: token.refresh_token }), "Invalid refreshed token response");
+      return persistResponse(await post("v1/oauth/trakt/refresh", {
+        refreshToken: token.refresh_token,
+        redirectUri: identity.getRedirectURL("oauth"),
+      }), "Invalid refreshed token response");
     }
     const needsRefresh = (token) => (token.created_at + token.expires_in) * 1000 - now() <= 60_000;
     async function status() { return publicStatus(await tokenStore.get(SERVICE_ID), available); }
@@ -66,7 +69,9 @@
       const authorizationState = authorizationUrl?.searchParams.get("state");
       if (!authorizationUrl || authorizationUrl.origin !== "https://trakt.tv" || authorizationUrl.pathname !== "/oauth/authorize"
         || !bounded(authorizationState, MAX_STATE_LENGTH)) throw new Error("Invalid authorization URL");
-      const redirected = new URL(await identity.launchWebAuthFlow({ url: authorizationUrl.href, interactive: true }));
+      const redirected = new URL(await identity.launchWebAuthFlow({
+        url: authorizationUrl.href, interactive: true,
+      }));
       const expected = new URL(redirectUri);
       if (redirected.origin !== expected.origin || redirected.pathname !== expected.pathname
         || redirected.searchParams.get("state") !== authorizationState || !bounded(redirected.searchParams.get("code"), 512)) throw new Error("Invalid OAuth redirect");

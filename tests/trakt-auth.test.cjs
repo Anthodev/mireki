@@ -9,11 +9,12 @@ assert.equal(normalizeToken({ ...rawToken, scope: "x".repeat(1025) }), null);
 function setup({ initialToken = null, failRevoke = false, now = () => 1000_000 } = {}) {
   let stored = initialToken;
   const requests = [];
+  let webAuthDetails;
   const tokenStore = {
     async get() { return stored; }, async set(_id, value) { stored = value; }, async remove() { stored = null; },
   };
   const auth = createTraktAuth({ config, tokenStore, now, crypto: { getRandomValues(a) { a.fill(1); return a; } },
-    identity: { getRedirectURL: () => "https://ext.test/oauth", async launchWebAuthFlow({ url }) { return `https://ext.test/oauth?code=once&state=${new URL(url).searchParams.get("state")}`; } },
+    identity: { getRedirectURL: () => "https://ext.test/oauth", async launchWebAuthFlow(details) { webAuthDetails = details; return `https://ext.test/oauth?code=once&state=${new URL(details.url).searchParams.get("state")}`; } },
     async fetch(url, init) {
       const body = JSON.parse(init.body); requests.push({ url, body });
       if (url.endsWith("/start")) return { ok: true, json: async () => ({ authorizationUrl: "https://trakt.tv/oauth/authorize?state=broker-state" }) };
@@ -21,7 +22,7 @@ function setup({ initialToken = null, failRevoke = false, now = () => 1000_000 }
       return { ok: true, json: async () => rawToken };
     },
   });
-  return { auth, requests, stored: () => stored };
+  return { auth, requests, stored: () => stored, webAuthDetails: () => webAuthDetails };
 }
 
 (async () => {
@@ -39,6 +40,10 @@ function setup({ initialToken = null, failRevoke = false, now = () => 1000_000 }
     redirectUri: "https://ext.test/oauth",
     state: "broker-state",
   });
+  assert.deepEqual(connected.webAuthDetails(), {
+    url: "https://trakt.tv/oauth/authorize?state=broker-state",
+    interactive: true,
+  }, "WebAuth details omit unsupported properties");
 
   const fresh = setup({ initialToken: expectedToken, now: () => 1001_000 });
   assert.equal((await fresh.auth.disconnect()).revocationFailed, false);
@@ -49,6 +54,10 @@ function setup({ initialToken = null, failRevoke = false, now = () => 1000_000 }
   const expired = setup({ initialToken: expectedToken, now: () => 2_000_000 });
   await expired.auth.disconnect();
   assert.deepEqual(expired.requests.map(({ url }) => url.split("/").pop()), ["refresh", "revoke"]);
+  assert.deepEqual(expired.requests[0].body, {
+    refreshToken: "refresh",
+    redirectUri: "https://ext.test/oauth",
+  });
   assert.deepEqual(expired.stored(), null);
 
   const failed = setup({ initialToken: expectedToken, failRevoke: true, now: () => 1001_000 });
