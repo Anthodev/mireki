@@ -7,7 +7,10 @@
 <p align="center"><strong>Keep your Trakt viewing history in sync while you watch.</strong></p>
 
 <p align="center">
-  <a href="https://github.com/Anthodev/mireki/releases/latest"><img src="https://img.shields.io/github/v/release/Anthodev/mireki?display_name=tag" alt="Latest version"></a>
+  <a href="https://addons.mozilla.org/en-US/firefox/addon/mireki/"><img src="https://img.shields.io/badge/Get_for_Firefox-FF7139?logo=firefoxbrowser&amp;logoColor=white" alt="Download Mireki for Firefox"></a>
+  <a href="https://chromewebstore.google.com/detail/mireki/glfbpjflkadibmbpcbdiikodgjlaocgh"><img src="https://img.shields.io/badge/Get_for_Chrome-4285F4?logo=googlechrome&amp;logoColor=white" alt="Download Mireki for Chrome"></a>
+  <a href="https://addons.mozilla.org/en-US/firefox/addon/mireki/"><img src="https://img.shields.io/amo/v/mireki?label=Firefox&amp;logo=firefoxbrowser" alt="Latest stable Firefox version"></a>
+  <a href="https://chromewebstore.google.com/detail/mireki/glfbpjflkadibmbpcbdiikodgjlaocgh"><img src="https://img.shields.io/chrome-web-store/v/glfbpjflkadibmbpcbdiikodgjlaocgh?label=Chrome&amp;logo=googlechrome" alt="Latest stable Chrome version"></a>
   <a href="https://github.com/Anthodev/mireki/actions/workflows/tests.yml"><img src="https://github.com/Anthodev/mireki/actions/workflows/tests.yml/badge.svg?branch=develop" alt="Tests"></a>
   <a href="LICENSE"><img src="https://img.shields.io/github/license/Anthodev/mireki" alt="License"></a>
 </p>
