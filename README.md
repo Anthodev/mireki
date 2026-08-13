@@ -25,6 +25,7 @@ A Trakt account is optional: without one, Mireki still provides a simple global 
 - **Automatic Trakt scrobbling** — starts, pauses, and completes viewing history automatically.
 - **Configurable completion threshold** — marks an item watched at a local 80–100% threshold that defaults to 90%.
 - **Cautious matching** — supports localized titles, aliases, common episode formats, and absolute anime numbering.
+- **Manual match correction** — search Trakt from the popup, choose an exact movie or series episode, and reuse that local correction for the same media.
 - **One global playback status** — keeps the current playing source stable when several tabs or embedded players are active.
 - **Background resilience** — recovers observation after Firefox unloads and restarts the extension background.
 - **No telemetry** — Mireki does not maintain analytics or collect unrelated browsing history.
@@ -46,6 +47,8 @@ Connect Trakt from **Firefox Add-ons → Mireki → Preferences**. Once connecte
 > **Best-effort scrobbling:** Streaming services, players, and exposed metadata change over time. Mireki cannot guarantee detection, matching, or scrobbling for every movie, series, episode, language, or provider. When information is missing or uncertain, it prefers not to scrobble rather than report the wrong media.
 
 Mireki can resolve an episode from a unique canonical or translated title within the matched series, using the within-season episode number as an additional hint when a service exposes it. It deliberately leaves media as **Unmatched**, **Ambiguous**, or **Episode unknown** when metadata is insufficient, and never silently invents a season or chooses between multiple candidates.
+
+When automatic matching is insufficient or wrong, **Find on Trakt** opens a focused correction view from the current playback card. Movie selections are validated against Trakt; series selections require explicit season and episode coordinates. Mireki stores the confirmed mapping locally for the exact normalized provider media and lets the user remove it to restore automatic matching.
 
 ## Privacy and permissions
 

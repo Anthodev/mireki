@@ -45,11 +45,21 @@
       const value = await request(path);
       return Array.isArray(value) ? value.slice(0, 10) : [];
     }
-    async function searchShows(query) {
-      if (typeof query !== "string" || !query.trim() || query.length > 300) return [];
-      const value = await request(`/search/show?query=${encodeURIComponent(query.trim())}&limit=10&extended=full`);
+    async function searchMedia(type, query) {
+      if (!new Set(["movie", "show"]).has(type) || typeof query !== "string" || !query.trim() || query.length > 100) return [];
+      const value = await request(`/search/${type}?query=${encodeURIComponent(query.trim())}&limit=10&extended=full`);
       return Array.isArray(value) ? value.slice(0, 10) : [];
     }
+    const searchMovies = (query) => searchMedia("movie", query);
+    const searchShows = (query) => searchMedia("show", query);
+    async function mediaItem(type, traktId) {
+      if (!new Set(["movie", "show"]).has(type) || !integer(traktId)) throw new Error("Invalid media identity");
+      const value = await request(`/${type === "movie" ? "movies" : "shows"}/${traktId}?extended=full`);
+      if (value?.ids?.trakt !== traktId) throw new TraktApiError(502);
+      return value;
+    }
+    const movie = (traktId) => mediaItem("movie", traktId);
+    const show = (traktId) => mediaItem("show", traktId);
     async function episode(showId, season, number) {
       if (!integer(showId) || !Number.isInteger(season) || season < 0 || !Number.isInteger(number) || number < 0) throw new Error("Invalid episode identity");
       const value = await request(`/shows/${showId}/seasons/${season}/episodes/${number}`);
@@ -79,7 +89,7 @@
       if (value.action !== expected) throw new TraktApiError(502);
       return value;
     }
-    return { searchExact, searchShows, episode, seasons, seasonEpisodes, scrobble };
+    return { searchExact, searchMovies, searchShows, movie, show, episode, seasons, seasonEpisodes, scrobble };
   }
   return { API_URL, TraktApiError, createTraktClient };
 });

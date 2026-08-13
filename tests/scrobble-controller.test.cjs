@@ -152,6 +152,26 @@ const status = (title, progress, state, tabId = 1, frameId = 0, extra = {}) => (
   await terminal.handle(status("Invalid", 20, "playing", 7));
   assert.equal(terminalAttempts, 1, "terminal API failure uses negative cooldown");
 
+  let manualCorrection = { item: { type: "movie", traktId: 77 }, key: "movie:77" };
+  let automaticMatches = 0;
+  const manualCalls = [];
+  const manualController = createScrobbleController({
+    matcher: { async match() { automaticMatches++; return { status: "matched", key: "movie:1", item: { type: "movie", traktId: 1 } }; } },
+    manualMatches: { async get() { return manualCorrection; } },
+    client: { async scrobble(action, item) { manualCalls.push([action, item.traktId]); return { action: action === "stop" ? "scrobble" : action }; } },
+    isConnected: async () => true,
+    storage: { async get(){return{};},async set(){} },
+  });
+  const manuallyMatched = status("Wrong automatic title", 10, "playing", 10);
+  await manualController.handle(manuallyMatched);
+  assert.equal(automaticMatches, 0, "manual correction bypasses automatic matching");
+  assert.deepEqual(manualCalls, [["start", 77]]);
+  manualCorrection = null;
+  manualController.invalidateMatch();
+  await manualController.handle(manuallyMatched);
+  assert.equal(automaticMatches, 1, "removing a correction restores automatic matching immediately");
+  assert.deepEqual(manualCalls, [["start", 77], ["pause", 77], ["start", 1]]);
+
   let releaseUnauthorized;
   let unauthorizedFinished = false;
   let unauthorizedScrobbles = 0;

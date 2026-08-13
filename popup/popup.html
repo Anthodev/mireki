@@ -8,31 +8,81 @@
   </head>
   <body>
     <main>
-      <p id="message" class="message" role="status">Looking for media…</p>
-      <button id="open-options" class="options-button" type="button" hidden>Open settings</button>
-      <article id="details" class="media-card" hidden>
-        <div class="hero">
-          <img id="media-artwork" alt="" referrerpolicy="no-referrer" hidden>
-          <div class="scrim" aria-hidden="true"></div>
-          <div class="hero-statuses">
-            <span id="media-status" class="status playback-status"></span>
-            <span id="sync-status" class="status sync-status">
-              <svg class="sync-icon" viewBox="0 0 16 16" aria-hidden="true">
-                <path d="M13.5 5.5V2.3l-1.3 1.3A5.5 5.5 0 0 0 2.6 6M2.5 10.5v3.2l1.3-1.3a5.5 5.5 0 0 0 9.6-2.4"/>
-              </svg>
-              <span id="sync-label"></span>
-            </span>
+      <section id="now-panel">
+        <p id="message" class="message" role="status">Looking for media…</p>
+        <button id="open-options" class="options-button" type="button" hidden>Open settings</button>
+        <article id="details" class="media-card" hidden>
+          <div class="hero">
+            <img id="media-artwork" alt="" referrerpolicy="no-referrer" hidden>
+            <div class="scrim" aria-hidden="true"></div>
+            <div class="hero-statuses">
+              <span id="media-status" class="status playback-status"></span>
+              <span id="sync-status" class="status sync-status">
+                <svg class="sync-icon" viewBox="0 0 16 16" aria-hidden="true">
+                  <path d="M13.5 5.5V2.3l-1.3 1.3A5.5 5.5 0 0 0 2.6 6M2.5 10.5v3.2l1.3-1.3a5.5 5.5 0 0 0 9.6-2.4"/>
+                </svg>
+                <span id="sync-label"></span>
+              </span>
+            </div>
+            <div class="identity">
+              <h2 id="media-title"></h2>
+              <p id="media-source"></p>
+            </div>
           </div>
-          <div class="identity">
-            <h2 id="media-title"></h2>
-            <p id="media-source"></p>
+          <div class="playback">
+            <div class="time-row"><span id="media-time"></span><span id="media-progress"></span></div>
+            <progress id="progress-bar" max="100" aria-label="Playback progress"></progress>
           </div>
+        </article>
+        <button id="open-correction" class="correction-button" type="button" hidden>
+          <span id="correction-action">Wrong match?</span>
+          <span aria-hidden="true">→</span>
+        </button>
+      </section>
+
+      <section id="correct-panel" aria-labelledby="correction-title" hidden>
+        <div class="correction-panel">
+          <button id="close-correction" class="back-button" type="button">← Now playing</button>
+          <header class="correction-header">
+            <h1 id="correction-title">Correct this match</h1>
+            <p>Choose the exact Trakt movie or episode for the current playback.</p>
+          </header>
+
+          <div id="manual-current" class="manual-current" hidden>
+            <div>
+              <span class="eyebrow">Manual match</span>
+              <strong id="manual-current-label"></strong>
+            </div>
+            <button id="remove-match" class="secondary-button danger-button" type="button">Remove</button>
+          </div>
+
+          <form id="match-form" class="search-form">
+            <label for="match-query">Movie or series title</label>
+            <div class="search-row">
+              <input id="match-query" name="query" type="search" minlength="2" maxlength="100" autocomplete="off" required>
+              <button id="search-match" class="primary-button" type="submit">Search</button>
+            </div>
+          </form>
+
+          <p id="match-feedback" class="match-feedback" role="status" aria-live="polite"></p>
+          <ul id="match-results" class="match-results" aria-label="Trakt search results"></ul>
+
+          <form id="episode-form" class="episode-form" hidden>
+            <div>
+              <span class="eyebrow">Selected series</span>
+              <strong id="selected-show"></strong>
+            </div>
+            <div class="coordinate-fields">
+              <label>Season <input id="season-number" name="season" type="number" min="0" max="1000" inputmode="numeric" required></label>
+              <label>Episode <input id="episode-number" name="episode" type="number" min="0" max="10000" inputmode="numeric" required></label>
+            </div>
+            <div class="form-actions">
+              <button id="cancel-episode" class="secondary-button" type="button">Cancel</button>
+              <button id="save-episode" class="primary-button" type="submit">Use episode</button>
+            </div>
+          </form>
         </div>
-        <div class="playback">
-          <div class="time-row"><span id="media-time"></span><span id="media-progress"></span></div>
-          <progress id="progress-bar" max="100" aria-label="Playback progress"></progress>
-        </div>
-      </article>
+      </section>
     </main>
     <script src="../shared/webextension-api.js"></script>
     <script src="popup-state.js"></script>

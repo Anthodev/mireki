@@ -21,7 +21,7 @@
     String(status.media?.episodeNumber || ""), status.source?.pageTitle,
   ]);
 
-  function createScrobbleController({ matcher, client, isConnected, storage, onUnauthorized = async () => {}, now = Date.now }) {
+  function createScrobbleController({ matcher, manualMatches = null, client, isConnected, storage, onUnauthorized = async () => {}, now = Date.now }) {
     const negative = new Map();
     let selected = null;
     let queue = Promise.resolve();
@@ -93,14 +93,25 @@
       if (!await isConnected()) { state.status = "notConnected"; return; }
       try {
         if (!state.match) {
-          const cached = negative.get(cooldownKey);
-          if (cached?.until > now()) { state.status = cached.status; return; }
-          if (cached) negative.delete(cooldownKey);
-          state.status = "matching";
-          const result = await matcher.match({ media, pageTitle: status.source.pageTitle });
+          const manual = await manualMatches?.get(status);
           if (selected !== state) return;
-          if (result.status !== "matched") { cacheNegative(cooldownKey, result.status); state.status = result.status; return; }
-          state.match = result;
+          if (manual) {
+            state.match = {
+              status: "matched",
+              key: `${manual.item.type}:${manual.item.traktId}`,
+              item: manual.item,
+              manual: true,
+            };
+          } else {
+            const cached = negative.get(cooldownKey);
+            if (cached?.until > now()) { state.status = cached.status; return; }
+            if (cached) negative.delete(cooldownKey);
+            state.status = "matching";
+            const result = await matcher.match({ media, pageTitle: status.source.pageTitle });
+            if (selected !== state) return;
+            if (result.status !== "matched") { cacheNegative(cooldownKey, result.status); state.status = result.status; return; }
+            state.match = result;
+          }
         }
         let done = await completed();
         if (selected !== state) return;
@@ -153,11 +164,14 @@
       completedPromise = Promise.resolve({});
     }
     function resume() { suspended = false; }
+    function invalidateMatch() {
+      if (selected) selected.identity = null;
+    }
     function setCompletionThreshold(value) {
       thresholdChanged = true;
       completionThreshold = normalizeCompletionThreshold(value);
     }
-    return { handle, statusFor, reset, resume, setCompletionThreshold };
+    return { handle, statusFor, reset, resume, setCompletionThreshold, invalidateMatch };
   }
   return { COMPLETED_KEY, MIN_SCROBBLE_PROGRESS, NEGATIVE_TTL, createScrobbleController };
 });

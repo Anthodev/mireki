@@ -15,6 +15,21 @@ global.MirekiAuthServices = {
 global.MirekiAuthConfig = { traktClientId: "client-id" };
 global.MirekiTraktClient = { createTraktClient() { return {}; } };
 global.MirekiTraktMatcher = { createTraktMatcher() { return {}; } };
+const manualMatches = {
+  identity() { return "identity"; },
+  async get() { return null; },
+  async set(_status, correction) { return correction; },
+  async remove() { return true; },
+};
+global.MirekiManualMatchStore = { createManualMatchStore() { return manualMatches; } };
+global.MirekiManualMatchService = {
+  createManualMatchService() {
+    return {
+      async search() { return []; },
+      async resolve() { return { item: { type: "movie", traktId: 1 }, display: { type: "movie", title: "Movie" } }; },
+    };
+  },
+};
 global.MirekiScrobbleController = {
   COMPLETED_KEY: "scrobble.completed.v1",
   createScrobbleController() {

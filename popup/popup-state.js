@@ -12,6 +12,7 @@ const syncLabels = {
   ambiguous: "Ambiguous", needsEpisode: "Episode unknown", unsupported: "Unsupported",
   syncing: "Syncing", scrobbling: "Scrobbling", paused: "Paused", synced: "Watched", error: "Sync error",
 };
+const correctableStates = new Set(["unmatched", "ambiguous", "needsEpisode"]);
 const sameText = (left, right) => left?.trim().toLocaleLowerCase() === right?.trim().toLocaleLowerCase();
 function sourceLabel(media, source, displayedTitle = media.title) {
   if (media.artist && !sameText(media.artist, displayedTitle)) return media.artist;
@@ -27,6 +28,7 @@ function renderState(state, elements) {
   elements.details.hidden = state.kind !== "media";
   elements.message.hidden = state.kind === "media";
   if (elements.optionsButton) elements.optionsButton.hidden = state.kind !== "empty";
+  if (elements.correctionButton) elements.correctionButton.hidden = state.kind !== "media";
   if (state.kind !== "media") {
     setArtwork(elements.artwork, null);
     elements.message.textContent = state.kind === "empty" ? "No media detected in open web tabs." : "Playback status unavailable.";
@@ -43,6 +45,12 @@ function renderState(state, elements) {
   if (elements.sync) {
     elements.sync.dataset.state = syncState;
     elements.sync.setAttribute("aria-label", `Trakt synchronization: ${syncLabel}`);
+  }
+  if (elements.correctionButton && elements.correctionAction) {
+    const hasManualMatch = Boolean(state.manualMatch?.display);
+    const emphasized = !hasManualMatch && correctableStates.has(syncState);
+    elements.correctionAction.textContent = hasManualMatch ? "Edit manual match" : emphasized ? "Find on Trakt" : "Wrong match?";
+    elements.correctionButton.dataset.emphasis = String(emphasized);
   }
   elements.time.textContent = `${formatTime(media.currentTime)} / ${formatTime(media.duration)}`;
   elements.progress.textContent = media.progress === null ? "Unknown progress" : `${media.progress.toFixed(1)} %`;

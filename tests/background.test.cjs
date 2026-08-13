@@ -22,8 +22,34 @@ global.MirekiScrobble = {
   },
   statusFor() { return { state: "scrobbling" }; },
 };
+let manualMatch = null;
+const manualSelections = [];
+global.MirekiManualMatch = {
+  identity(status) { return status.kind === "media" ? `media:${status.media.title}` : null; },
+  async get() { return manualMatch; },
+  async search(query) { return [{ type: "movie", traktId: 7, title: query, year: 2026 }]; },
+  async set(status, mediaKey, selection) {
+    if (mediaKey !== this.identity(status)) throw new Error("Stale media");
+    manualSelections.push(selection);
+    manualMatch = {
+      item: { type: "movie", traktId: selection.traktId },
+      display: { type: "movie", title: "First corrected", showTitle: null, year: 2026, season: null, episode: null },
+    };
+    return manualMatch;
+  },
+  async remove(status, mediaKey) {
+    if (mediaKey !== this.identity(status)) throw new Error("Stale media");
+    manualMatch = null;
+    return true;
+  },
+};
+global.MirekiScrobble.invalidateMatch = () => {};
 global.browser = {
-  runtime: { id: "mireki@test", onMessage: { addListener(listener) { onMessage = listener; } } },
+  runtime: {
+    id: "mireki@test",
+    getURL: (path = "") => `moz-extension://mireki/${path}`,
+    onMessage: { addListener(listener) { onMessage = listener; } },
+  },
   tabs: {
     onRemoved: { addListener(listener) { onRemoved = listener; } },
     onUpdated: { addListener(listener) { onUpdated = listener; } },
@@ -51,6 +77,23 @@ const observe = (title, tabId, state = "playing", frameId = 0) => onMessage({ ty
   assert.deepEqual(await response, { accepted: true });
   assert.equal(handled.at(-1).source.tabId, 1);
   assert.equal(alarmDeadlines.at(-1), 31_000, "background schedules exact earliest expiry");
+  const extensionSender = { id: browser.runtime.id, url: browser.runtime.getURL("popup/popup.html") };
+  const search = await onMessage({ type: "manual-match:search", query: "First" }, extensionSender);
+  assert.equal(search.ok, true);
+  assert.equal(search.mediaKey, "media:First");
+  assert.equal(search.results[0].traktId, 7);
+  const correction = await onMessage({
+    type: "manual-match:set",
+    mediaKey: search.mediaKey,
+    selection: { type: "movie", traktId: 7 },
+  }, extensionSender);
+  assert.equal(correction.ok, true);
+  assert.deepEqual(manualSelections, [{ type: "movie", traktId: 7 }]);
+  const correctedStatus = await onMessage({ type: "status:get" }, extensionSender);
+  assert.equal(correctedStatus.manualMatch.display.title, "First corrected");
+  assert.equal((await onMessage({ type: "manual-match:remove", mediaKey: search.mediaKey }, extensionSender)).ok, true);
+  assert.equal((await onMessage({ type: "status:get" }, extensionSender)).manualMatch, null);
+  assert.equal(onMessage({ type: "manual-match:search", query: "First" }, sender(1)), undefined, "content scripts cannot use manual matching");
 
   await observe("Competing", 2);
   assert.equal(handled.at(-1).source.tabId, 1, "competing playing tab cannot bypass sticky global winner");

@@ -11,6 +11,15 @@ const client = createTraktClient({ clientId: "public", getAccessToken: async () 
   response = { ok: true, status: 200, headers: { get: () => null }, json: async () => [] };
   await client.searchShows("Golden Kamui");
   assert.match(requests.at(-1).url, /\/search\/show\?query=Golden%20Kamui&limit=10&extended=full$/);
+  response = { ok: true, status: 200, headers: { get: () => null }, json: async () => [] };
+  await client.searchMovies("Arrival");
+  assert.match(requests.at(-1).url, /\/search\/movie\?query=Arrival&limit=10&extended=full$/);
+  response = { ok: true, status: 200, headers: { get: () => null }, json: async () => ({ title: "Arrival", ids: { trakt: 10 } }) };
+  assert.equal((await client.movie(10)).ids.trakt, 10);
+  assert.match(requests.at(-1).url, /\/movies\/10\?extended=full$/);
+  response = { ok: true, status: 200, headers: { get: () => null }, json: async () => ({ title: "Example Show", ids: { trakt: 20 } }) };
+  assert.equal((await client.show(20)).ids.trakt, 20);
+  assert.match(requests.at(-1).url, /\/shows\/20\?extended=full$/);
   response = { ok: true, status: 200, headers: { get: () => null }, json: async () => [{ number: 5, episodes: [] }] };
   assert.equal((await client.seasons(20))[0].number, 5);
   assert.match(requests.at(-1).url, /\/shows\/20\/seasons\?extended=episodes,full$/);
