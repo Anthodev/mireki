@@ -1,6 +1,7 @@
 const assert = require("node:assert/strict");
 
 global.MirekiSessions = require("../shared/session-store.js");
+global.MirekiScrobbleControls = require("../playback/scrobble-controls.js");
 let onMessage;
 let onRemoved;
 let onUpdated;
@@ -11,11 +12,15 @@ Date.now = () => time;
 let hold = false;
 let release;
 const handled = [];
+const blocked = [];
+const localValues = {};
+const sessionValues = {};
 const alarmDeadlines = [];
 let alarmClears = 0;
 global.MirekiScrobble = {
-  handle(status) {
+  handle(status, blockedState) {
     handled.push(status);
+    blocked.push(blockedState);
     if (!hold) return Promise.resolve();
     hold = false;
     return new Promise((resolve) => { release = resolve; });
@@ -58,6 +63,16 @@ global.browser = {
     async create(_name, info) { alarmDeadlines.push(info.when); }, async clear() { alarmClears++; },
     onAlarm: { addListener(listener) { onAlarm = listener; } },
   },
+  storage: {
+    local: {
+      async get(key) { return { [key]: localValues[key] }; },
+      async set(update) { Object.assign(localValues, update); },
+    },
+    session: {
+      async get(key) { return { [key]: sessionValues[key] }; },
+      async set(update) { Object.assign(sessionValues, update); },
+    },
+  },
 };
 require("../shared/webextension-api.js");
 require("../background/background.js");
@@ -66,12 +81,12 @@ const sender = (tabId, frameId = 0) => { const url = `https://site${tabId}.crunc
 const observe = (title, tabId, state = "playing", frameId = 0) => onMessage({ type: "media:observation", media: media(title, state), pageTitle: title }, sender(tabId, frameId));
 
 (async () => {
-  assert.deepEqual(await onMessage({ type: "status:get" }, { id: browser.runtime.id }), { kind: "empty" });
+  assert.equal((await onMessage({ type: "status:get" }, { id: browser.runtime.id })).kind, "empty");
   hold = true;
   const response = observe("First", 1);
   let settled = false;
   response.then(() => { settled = true; });
-  await Promise.resolve();
+  while (!release) await Promise.resolve();
   assert.equal(settled, false, "message response awaits controller work");
   release();
   assert.deepEqual(await response, { accepted: true });
@@ -94,6 +109,29 @@ const observe = (title, tabId, state = "playing", frameId = 0) => onMessage({ ty
   assert.equal((await onMessage({ type: "manual-match:remove", mediaKey: search.mediaKey }, extensionSender)).ok, true);
   assert.equal((await onMessage({ type: "status:get" }, extensionSender)).manualMatch, null);
   assert.equal(onMessage({ type: "manual-match:search", query: "First" }, sender(1)), undefined, "content scripts cannot use manual matching");
+  assert.equal((await onMessage({ type: "scrobble-controls:get" }, extensionSender)).controls.mode, "active");
+  assert.equal((await onMessage({ type: "scrobble-controls:pause", duration: "15m" }, extensionSender)).controls.mode, "paused");
+  assert.equal(blocked.at(-1), "paused", "temporary suspension reaches the controller immediately");
+  assert.equal((await onMessage({ type: "status:get" }, extensionSender)).controls.resumeAt, 901_000);
+  assert.equal((await onMessage({ type: "scrobble-controls:resume" }, extensionSender)).controls.mode, "active");
+  assert.equal(blocked.at(-1), null);
+  assert.equal((await onMessage({ type: "scrobble-controls:ignore-current" }, extensionSender)).controls.mode, "ignored");
+  assert.equal(blocked.at(-1), "ignored");
+  assert.equal((await onMessage({ type: "scrobble-controls:resume-current" }, extensionSender)).controls.mode, "active");
+  assert.equal((await onMessage({ type: "scrobble-controls:set-provider", providerId: "crunchyroll", enabled: false }, extensionSender)).controls.mode, "providerDisabled");
+  assert.equal((await onMessage({ type: "scrobble-controls:set-provider", providerId: "crunchyroll", enabled: true }, extensionSender)).controls.mode, "active");
+  assert.equal((await onMessage({ type: "scrobble-controls:set-global", enabled: false }, extensionSender)).controls.mode, "disabled");
+  assert.equal((await onMessage({ type: "scrobble-controls:set-global", enabled: true }, extensionSender)).controls.mode, "active");
+  assert.equal(onMessage({ type: "scrobble-controls:pause", duration: "15m" }, sender(1)), undefined, "content scripts cannot change scrobbling controls");
+  assert.deepEqual(await onMessage({ type: "scrobble-controls:pause", duration: "invalid" }, extensionSender), { ok: false, error: "invalidRequest" });
+  await onMessage({ type: "scrobble-controls:pause", duration: "15m" }, extensionSender);
+  time = 900_999;
+  await observe("First", 1);
+  assert.equal(blocked.at(-1), "paused");
+  time = 901_000;
+  await onAlarm({ name: "mireki:scrobble-resume" });
+  assert.equal(blocked.at(-1), null, "pause deadline resumes processing through a one-shot alarm");
+  assert.equal((await onMessage({ type: "scrobble-controls:get" }, extensionSender)).controls.mode, "active");
 
   await observe("Competing", 2);
   assert.equal(handled.at(-1).source.tabId, 1, "competing playing tab cannot bypass sticky global winner");

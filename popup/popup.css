@@ -39,7 +39,7 @@ main { padding: .75rem; }
 .sync-icon { width: .78rem; height: .78rem; flex: none; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
 .sync-status[data-state="syncing"], .sync-status[data-state="scrobbling"], .sync-status[data-state="paused"] { background: rgba(96,71,215,.88); }
 .sync-status[data-state="synced"] { background: rgba(24,121,83,.88); }
-.sync-status[data-state="unmatched"], .sync-status[data-state="ambiguous"], .sync-status[data-state="needsEpisode"], .sync-status[data-state="unsupported"] { background: rgba(155,92,20,.9); }
+.sync-status[data-state="unmatched"], .sync-status[data-state="ambiguous"], .sync-status[data-state="needsEpisode"], .sync-status[data-state="unsupported"], .sync-status[data-state="ignored"], .sync-status[data-state="paused"], .sync-status[data-state="providerDisabled"] { background: rgba(155,92,20,.9); }
 .sync-status[data-state="error"] { background: rgba(176,48,55,.9); }
 .sync-status[data-state="syncing"] .sync-icon { animation: sync-spin .9s linear infinite; }
 @keyframes sync-spin { to { transform: rotate(360deg); } }
@@ -146,6 +146,7 @@ input {
 .back-button:focus-visible,
 .primary-button:focus-visible,
 .secondary-button:focus-visible,
+.settings-link:focus-visible,
 .result-button:focus-visible,
 input:focus-visible {
   outline: 3px solid color-mix(in srgb, var(--accent) 45%, transparent);
@@ -189,3 +190,13 @@ input:disabled { cursor: not-allowed; opacity: .55; }
 .form-actions { display: flex; justify-content: flex-end; gap: .5rem; }
 [hidden] { display: none !important; }
 
+.control-status { margin-bottom:.85rem; padding:.8rem; border:1px solid var(--border); border-radius:.65rem; background:var(--bg) }
+.control-status strong,.control-status > span:last-child { display:block; overflow-wrap:anywhere }
+.control-status strong { font-size:.9rem }
+.control-status > span:last-child { margin-top:.25rem; color:var(--muted); font-size:.75rem; line-height:1.4 }
+.wide-button { width:100%; margin-top:.65rem }
+.pause-controls { min-width:0; margin:.9rem 0 0; padding:.85rem 0 0; border:0; border-top:1px solid var(--border) }
+.pause-controls legend { padding:0; font-size:.78rem; font-weight:700 }
+.pause-grid { display:grid; grid-template-columns:1fr 1fr; gap:.5rem; margin-top:.65rem }
+.pause-grid button:last-child { grid-column:1 / -1 }
+.settings-link { display:block; width:100%; margin-top:.8rem; border:0; padding:.35rem; background:transparent; color:var(--accent); font:inherit; font-size:.75rem; font-weight:700; cursor:pointer }

@@ -42,6 +42,8 @@ assert.ok(scripts.indexOf("shared/episode-label.js") < scripts.indexOf("trakt/tr
   "episode parser loads before Trakt matcher");
 assert.ok(scripts.indexOf("shared/completion-threshold.js") < scripts.indexOf("playback/scrobble-controller.js"),
   "completion threshold contract loads before scrobble controller");
+assert.ok(scripts.indexOf("playback/scrobble-controls.js") < scripts.indexOf("background/background.js"),
+  "scrobbling control contract loads before background message handling");
 assert.ok(scripts.indexOf("background/auth-background.js") < scripts.indexOf("background/scrobble-background.js"));
 assert.ok(scripts.indexOf("background/scrobble-background.js") < scripts.indexOf("background/background.js"), "controller initializes before sole observation listener");
 console.log("manifest permission checks: OK");

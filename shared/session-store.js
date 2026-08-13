@@ -8,9 +8,12 @@
   const STATUS = "status:get";
   const STATES = new Set(["playing", "paused", "ended"]);
   const KINDS = new Set(["video", "audio"]);
-  const PROVIDER_HOSTS = Object.freeze([
-    "crunchyroll.com", "netflix.com", "primevideo.com",
+  const PROVIDERS = Object.freeze([
+    Object.freeze({ id: "crunchyroll", label: "Crunchyroll", host: "crunchyroll.com" }),
+    Object.freeze({ id: "netflix", label: "Netflix", host: "netflix.com" }),
+    Object.freeze({ id: "prime-video", label: "Prime Video", host: "primevideo.com" }),
   ]);
+  const PROVIDER_HOSTS = Object.freeze(PROVIDERS.map(({ host }) => host));
   function providerUrl(value) {
     try {
       const url = new URL(value);
@@ -120,5 +123,5 @@
     }
   }
 
-  return { OBSERVATION, STATUS, PROVIDER_HOSTS, SessionStore, validMedia, validObservation, validObservationSender };
+  return { OBSERVATION, STATUS, PROVIDERS, PROVIDER_HOSTS, SessionStore, validMedia, validObservation, validObservationSender };
 });

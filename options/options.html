@@ -13,6 +13,25 @@
       <h2 id="services-title">Services</h2>
       <div id="services" aria-live="polite"><p class="loading">Loading services…</p></div>
     </section>
+    <section aria-labelledby="privacy-title">
+      <h2 id="privacy-title">Privacy &amp; scrobbling</h2>
+      <div id="scrobble-controls" class="setting-card" aria-busy="true">
+        <label class="toggle-setting" for="scrobbling-enabled">
+          <span><strong>Scrobbling enabled</strong><small>When disabled, Mireki keeps detecting playback locally but sends no media to Trakt.</small></span>
+          <input id="scrobbling-enabled" type="checkbox" disabled>
+        </label>
+        <div class="setting-divider"></div>
+        <fieldset id="provider-controls" disabled>
+          <legend>Enabled providers</legend>
+          <p class="setting-help">Turn off scrobbling for a service without removing its site access.</p>
+          <div id="provider-list" class="provider-list"></div>
+        </fieldset>
+        <div id="suspension-status" class="suspension-status" hidden>
+          <span id="suspension-label"></span>
+          <button id="resume-scrobbling" class="secondary" type="button">Resume now</button>
+        </div>
+      </div>
+    </section>
     <section aria-labelledby="playback-title">
       <h2 id="playback-title">Playback</h2>
       <form id="completion-threshold-form" class="setting-card">

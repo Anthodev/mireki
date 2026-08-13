@@ -9,10 +9,11 @@ const element = () => ({
 });
 const elements = {
   message: element(), details: element(), artwork: element(), title: element(), source: element(), status: element(), sync: element(), syncLabel: element(),
-  optionsButton: element(), correctionButton: element(), correctionAction: element(), time: element(), progress: element(), bar: element(),
+  optionsButton: element(), correctionButton: element(), correctionAction: element(), controlsButton: element(), time: element(), progress: element(), bar: element(),
 };
 elements.optionsButton.hidden = true;
 elements.correctionButton.hidden = true;
+elements.controlsButton.hidden = true;
 
 assert.equal(formatTime(65), "1:05");
 assert.equal(formatTime(3661), "1:01:01");
@@ -20,6 +21,7 @@ renderState({ kind: "empty" }, elements);
 assert.match(elements.message.textContent, /No media/);
 assert.equal(elements.optionsButton.hidden, false, "options button is shown with the empty state");
 assert.equal(elements.correctionButton.hidden, true, "manual correction stays contextual to detected media");
+assert.equal(elements.controlsButton.hidden, false, "scrobbling controls remain available without detected media");
 renderState({ kind: "error" }, elements);
 assert.match(elements.message.textContent, /unavailable/);
 assert.equal(elements.optionsButton.hidden, true, "options button stays hidden for errors");
@@ -59,6 +61,18 @@ renderState({ kind: "media", media: {
 }, source: { hostname: "example.test" }, sync: { state: "ambiguous" } }, elements);
 assert.equal(elements.correctionAction.textContent, "Find on Trakt");
 assert.equal(elements.correctionButton.dataset.emphasis, "true");
+renderState({ kind: "media", media: {
+  kind: "video", title: "Ignored episode", artist: "Show", album: null, artwork: null,
+  currentTime: 30, duration: 120, state: "playing", progress: 25,
+}, source: { hostname: "www.netflix.com" }, sync: { state: "ignored" } }, elements);
+assert.equal(elements.syncLabel.textContent, "Ignored");
+assert.equal(elements.sync.getAttribute("aria-label"), "Trakt synchronization: Ignored");
+
+renderState({ kind: "media", media: {
+  kind: "video", title: "Provider disabled", artist: "Show", album: null, artwork: null,
+  currentTime: 30, duration: 120, state: "playing", progress: 25,
+}, source: { hostname: "www.netflix.com" }, sync: { state: "providerDisabled" } }, elements);
+assert.equal(elements.syncLabel.textContent, "Provider off");
 
 renderState({ kind: "media", media: {
   kind: "video", title: "Corrected", artist: null, album: null, artwork: null,

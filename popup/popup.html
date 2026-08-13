@@ -38,6 +38,10 @@
           <span id="correction-action">Wrong match?</span>
           <span aria-hidden="true">→</span>
         </button>
+        <button id="open-controls" class="correction-button" type="button">
+          <span>Scrobbling controls</span>
+          <span aria-hidden="true">→</span>
+        </button>
       </section>
 
       <section id="correct-panel" aria-labelledby="correction-title" hidden>
@@ -81,6 +85,36 @@
               <button id="save-episode" class="primary-button" type="submit">Use episode</button>
             </div>
           </form>
+        </div>
+      </section>
+      <section id="controls-panel" aria-labelledby="controls-title" hidden>
+        <div class="correction-panel">
+          <button id="close-controls" class="back-button" type="button">← Now playing</button>
+          <header class="correction-header">
+            <h1 id="controls-title">Scrobbling controls</h1>
+            <p>Pause what Mireki sends to Trakt without stopping local playback detection.</p>
+          </header>
+
+          <div class="control-status" role="status">
+            <span class="eyebrow">Current state</span>
+            <strong id="control-status-label">Scrobbling is active</strong>
+            <span id="control-status-detail"></span>
+          </div>
+
+          <button id="toggle-current-playback" class="secondary-button wide-button" type="button" hidden>Ignore this playback</button>
+
+          <fieldset id="pause-controls" class="pause-controls">
+            <legend>Pause scrobbling</legend>
+            <div class="pause-grid">
+              <button class="secondary-button" type="button" data-duration="15m">15 minutes</button>
+              <button class="secondary-button" type="button" data-duration="1h">1 hour</button>
+              <button class="secondary-button" type="button" data-duration="restart">Until restart</button>
+            </div>
+          </fieldset>
+
+          <button id="resume-controls" class="primary-button wide-button" type="button" hidden>Resume now</button>
+          <button id="open-privacy-settings" class="settings-link" type="button">Manage providers and global settings</button>
+          <p id="control-feedback" class="match-feedback" role="status" aria-live="polite"></p>
         </div>
       </section>
     </main>

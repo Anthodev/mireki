@@ -30,6 +30,17 @@ const elements = {
   episodeNumber: document.querySelector("#episode-number"),
   saveEpisode: document.querySelector("#save-episode"),
   cancelEpisode: document.querySelector("#cancel-episode"),
+  controlsButton: document.querySelector("#open-controls"),
+  controlsPanel: document.querySelector("#controls-panel"),
+  closeControls: document.querySelector("#close-controls"),
+  controlStatusLabel: document.querySelector("#control-status-label"),
+  controlStatusDetail: document.querySelector("#control-status-detail"),
+  toggleCurrentPlayback: document.querySelector("#toggle-current-playback"),
+  pauseControls: document.querySelector("#pause-controls"),
+  pauseButtons: [...document.querySelectorAll("[data-duration]")],
+  resumeControls: document.querySelector("#resume-controls"),
+  privacySettings: document.querySelector("#open-privacy-settings"),
+  controlFeedback: document.querySelector("#control-feedback"),
 };
 
 let currentState = { kind: "error" };
@@ -38,6 +49,7 @@ let searchMediaKey = null;
 let selectedShow = null;
 let correctionOpen = false;
 let stopped = false;
+let controlsOpen = false;
 
 function mediaSignature(state) {
   if (state?.kind !== "media") return null;
@@ -64,6 +76,63 @@ function correctionLabel(display) {
 function setFeedback(message, error = false) {
   elements.feedback.textContent = message;
   elements.feedback.dataset.error = String(error);
+}
+function setControlFeedback(message, error = false) {
+  elements.controlFeedback.textContent = message;
+  elements.controlFeedback.dataset.error = String(error);
+}
+
+function setControlsBusy(busy) {
+  elements.toggleCurrentPlayback.disabled = busy;
+  elements.resumeControls.disabled = busy;
+  elements.privacySettings.disabled = busy;
+  for (const button of elements.pauseButtons) button.disabled = busy;
+}
+
+function controlDetail(controls) {
+  if (controls.mode === "paused") {
+    return controls.resumeAt === null
+      ? "Mireki will resume after the browser restarts."
+      : `Mireki will resume at ${new Date(controls.resumeAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}.`;
+  }
+  if (controls.mode === "disabled") return "Enable scrobbling in settings when you are ready.";
+  if (controls.mode === "providerDisabled") return `Enable ${controls.providerLabel || "this provider"} in settings to resume.`;
+  if (controls.mode === "ignored") return "This media stays local until playback changes.";
+  return controls.providerLabel ? `${controls.providerLabel} can sync with Trakt.` : "Detected media can sync with Trakt.";
+}
+
+function renderControlsState(state) {
+  const controls = state?.controls || { mode: "active", providerLabel: null };
+  const labels = {
+    active: "Scrobbling is active",
+    paused: "Scrobbling is paused",
+    disabled: "Scrobbling is disabled",
+    providerDisabled: `${controls.providerLabel || "This provider"} is disabled`,
+    ignored: "Current playback is ignored",
+  };
+  elements.controlStatusLabel.textContent = labels[controls.mode] || labels.active;
+  elements.controlStatusDetail.textContent = controlDetail(controls);
+  const currentActionAvailable = state?.kind === "media" && (controls.mode === "active" || controls.mode === "ignored");
+  elements.toggleCurrentPlayback.hidden = !currentActionAvailable;
+  elements.toggleCurrentPlayback.textContent = controls.mode === "ignored" ? "Resume this playback" : "Ignore this playback";
+  elements.pauseControls.hidden = controls.mode !== "active";
+  elements.resumeControls.hidden = controls.mode !== "paused";
+}
+
+async function updateScrobbleControls(message, successMessage) {
+  setControlsBusy(true);
+  setControlFeedback("");
+  try {
+    const response = await browser.runtime.sendMessage(message);
+    if (!response?.ok) throw new Error(response?.error);
+    currentState.controls = response.controls;
+    renderControlsState(currentState);
+    setControlFeedback(successMessage);
+  } catch {
+    setControlFeedback("Scrobbling controls could not be updated. Try again.", true);
+  } finally {
+    setControlsBusy(false);
+  }
 }
 
 function clearSelection() {
@@ -108,18 +177,32 @@ function updateCorrectionState(state) {
 
 function showCorrection() {
   correctionOpen = true;
+  controlsOpen = false;
   elements.nowPanel.hidden = true;
+  elements.controlsPanel.hidden = true;
   elements.correctPanel.hidden = false;
   updateCorrectionState(currentState);
   if (currentState.kind === "media") elements.matchQuery.focus();
   else elements.closeCorrection.focus();
 }
 
-function showNowPlaying() {
+function showNowPlaying(focusTarget = elements.correctionButton) {
   correctionOpen = false;
+  controlsOpen = false;
   elements.correctPanel.hidden = true;
+  elements.controlsPanel.hidden = true;
   elements.nowPanel.hidden = false;
-  elements.correctionButton.focus();
+  focusTarget.focus();
+}
+
+function showControls() {
+  controlsOpen = true;
+  correctionOpen = false;
+  elements.nowPanel.hidden = true;
+  elements.correctPanel.hidden = true;
+  elements.controlsPanel.hidden = false;
+  renderControlsState(currentState);
+  elements.closeControls.focus();
 }
 
 function resultButton(result) {
@@ -200,7 +283,28 @@ elements.optionsButton.addEventListener("click", () => {
   browser.runtime.openOptionsPage().catch(() => {});
 });
 elements.correctionButton.addEventListener("click", showCorrection);
-elements.closeCorrection.addEventListener("click", showNowPlaying);
+elements.closeCorrection.addEventListener("click", () => showNowPlaying(elements.correctionButton));
+elements.controlsButton.addEventListener("click", showControls);
+elements.closeControls.addEventListener("click", () => showNowPlaying(elements.controlsButton));
+elements.privacySettings.addEventListener("click", () => {
+  browser.runtime.openOptionsPage().catch(() => {});
+});
+elements.toggleCurrentPlayback.addEventListener("click", () => {
+  const ignored = currentState.controls?.mode === "ignored";
+  updateScrobbleControls(
+    { type: ignored ? "scrobble-controls:resume-current" : "scrobble-controls:ignore-current" },
+    ignored ? "This playback can scrobble again." : "This playback will not be sent to Trakt.",
+  );
+});
+elements.resumeControls.addEventListener("click", () => {
+  updateScrobbleControls({ type: "scrobble-controls:resume" }, "Scrobbling resumed.");
+});
+for (const button of elements.pauseButtons) button.addEventListener("click", () => {
+  updateScrobbleControls(
+    { type: "scrobble-controls:pause", duration: button.dataset.duration },
+    "Scrobbling paused.",
+  );
+});
 elements.cancelEpisode.addEventListener("click", () => {
   clearSelection();
   elements.matchQuery.focus();
@@ -263,7 +367,8 @@ elements.removeMatch.addEventListener("click", async () => {
   }
 });
 window.addEventListener("keydown", (event) => {
-  if (event.key === "Escape" && correctionOpen) showNowPlaying();
+  if (event.key === "Escape" && correctionOpen) showNowPlaying(elements.correctionButton);
+  else if (event.key === "Escape" && controlsOpen) showNowPlaying(elements.controlsButton);
 });
 
 async function refresh() {
@@ -275,6 +380,7 @@ async function refresh() {
   }
   MirekiPopup.renderState(currentState, elements);
   updateCorrectionState(currentState);
+  renderControlsState(currentState);
 }
 
 async function refreshLoop() {

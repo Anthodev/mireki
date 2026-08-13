@@ -11,6 +11,7 @@ const syncLabels = {
   idle: "Idle", notConnected: "Not connected", matching: "Matching", unmatched: "Unmatched",
   ambiguous: "Ambiguous", needsEpisode: "Episode unknown", unsupported: "Unsupported",
   syncing: "Syncing", scrobbling: "Scrobbling", paused: "Paused", synced: "Watched", error: "Sync error",
+  disabled: "Disabled", providerDisabled: "Provider off", ignored: "Ignored",
 };
 const correctableStates = new Set(["unmatched", "ambiguous", "needsEpisode"]);
 const sameText = (left, right) => left?.trim().toLocaleLowerCase() === right?.trim().toLocaleLowerCase();
@@ -29,6 +30,7 @@ function renderState(state, elements) {
   elements.message.hidden = state.kind === "media";
   if (elements.optionsButton) elements.optionsButton.hidden = state.kind !== "empty";
   if (elements.correctionButton) elements.correctionButton.hidden = state.kind !== "media";
+  if (elements.controlsButton) elements.controlsButton.hidden = false;
   if (state.kind !== "media") {
     setArtwork(elements.artwork, null);
     elements.message.textContent = state.kind === "empty" ? "No media detected in open web tabs." : "Playback status unavailable.";

@@ -75,13 +75,26 @@
       }
       selected.lastPlayback = "paused";
     }
-    async function process(status) {
+    async function process(status, blockedState = null) {
       const nextKey = status.kind === "media" ? sourceKey(status.source) : null;
       await pausePrevious(nextKey);
       if (status.kind !== "media") { selected = null; return; }
       const media = status.media;
       const fingerprint = matchIdentity(status);
       const cooldownKey = fingerprint;
+      if (blockedState) {
+        await pausePrevious(null);
+        selected = {
+          key: nextKey,
+          identity: fingerprint,
+          status: blockedState,
+          match: null,
+          lastPlayback: null,
+          progress: media.progress,
+          retryAt: 0,
+        };
+        return;
+      }
       if (!selected || selected.key !== nextKey || selected.identity !== fingerprint) {
         await pausePrevious(null);
         selected = { key: nextKey, identity: fingerprint, status: "matching", match: null, lastPlayback: null, progress: media.progress, retryAt: 0 };
@@ -145,9 +158,9 @@
         if (error?.status === 401) await unauthorized();
       }
     }
-    function handle(status) {
+    function handle(status, blockedState = null) {
       if (suspended) return Promise.resolve();
-      const task = queue.then(() => process(status));
+      const task = queue.then(() => process(status, blockedState));
       queue = task.catch(() => {});
       return task;
     }

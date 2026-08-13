@@ -9,3 +9,16 @@ section + section { margin-top:2rem }
 #completion-threshold { width:100%; margin:.9rem 0 .55rem; accent-color:var(--accent) }
 .setting-help { color:var(--muted); margin-bottom:1rem }
 .setting-card button { display:block; margin-left:auto }
+.toggle-setting { display:flex; align-items:center; justify-content:space-between; gap:1rem; cursor:pointer }
+.toggle-setting strong,.toggle-setting small { display:block }
+.toggle-setting small { max-width:34rem; margin-top:.25rem; color:var(--muted); line-height:1.4 }
+.toggle-setting input { width:1.1rem; height:1.1rem; flex:none; margin:0; accent-color:var(--accent) }
+.toggle-setting input:focus-visible { outline:3px solid color-mix(in srgb,var(--accent) 45%,transparent); outline-offset:2px }
+.setting-divider { height:1px; margin:1rem 0; background:var(--border) }
+#provider-controls { min-width:0; margin:0; padding:0; border:0 }
+#provider-controls legend { padding:0; font-weight:650 }
+#provider-controls .setting-help { margin:.3rem 0 .65rem; line-height:1.4 }
+.provider-list { display:grid }
+.toggle-setting.compact { min-height:2.5rem; border-top:1px solid var(--border) }
+.suspension-status { display:flex; align-items:center; justify-content:space-between; gap:1rem; margin-top:1rem; padding:.75rem; border-radius:.6rem; background:var(--bg); color:var(--muted); line-height:1.4 }
+.suspension-status button { flex:none }

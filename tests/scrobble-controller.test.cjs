@@ -172,6 +172,23 @@ const status = (title, progress, state, tabId = 1, frameId = 0, extra = {}) => (
   assert.equal(automaticMatches, 1, "removing a correction restores automatic matching immediately");
   assert.deepEqual(manualCalls, [["start", 77], ["pause", 77], ["start", 1]]);
 
+  const policyCalls = [];
+  const policyController = createScrobbleController({
+    matcher,
+    client: { async scrobble(action) { policyCalls.push(action); } },
+    isConnected: async () => true,
+    storage: { async get(){return{};},async set(){} },
+  });
+  const controlledStatus = status("One", 20, "playing", 18);
+  await policyController.handle(controlledStatus);
+  await policyController.handle(controlledStatus, "ignored");
+  assert.deepEqual(policyCalls, ["start", "pause"], "blocking active playback pauses its remote scrobble");
+  assert.equal(policyController.statusFor(source(18)).state, "ignored");
+  await policyController.handle(controlledStatus, "ignored");
+  assert.deepEqual(policyCalls, ["start", "pause"], "blocked heartbeats do not send duplicate pauses");
+  await policyController.handle(controlledStatus);
+  assert.deepEqual(policyCalls, ["start", "pause", "start"], "removing the block resumes current playback");
+
   let releaseUnauthorized;
   let unauthorizedFinished = false;
   let unauthorizedScrobbles = 0;
