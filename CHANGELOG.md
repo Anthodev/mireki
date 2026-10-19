@@ -13,9 +13,11 @@
 ### Changes
 
 - Mark truncated episode catalogues as incomplete, so response and catalogue-size limits cannot justify a uniqueness-based correction.
+- Separate provider-neutral playback-metadata interpretation from the shared Trakt resolver, keeping matching rules, raw display and saved correction identities unchanged.
 
 ### Fixes
 
+- Show the popup's intermediate matching state without waiting for Trakt requests, and keep playback-expiry alarms armed while matching is pending.
 - Preserve episode titles and explicit E-number hints alongside split-season labels such as `Season 2: Part 2`, without converting season parts into Trakt seasons on Netflix and Prime Video.
 - Recover Netflix series headings and heading-plus-title scopes when an episode has no number, and replace the literal `Netflix` artist placeholder with the extracted series or none.
 

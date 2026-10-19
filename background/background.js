@@ -20,8 +20,12 @@ async function scheduleScrobbleResume() {
 async function processSelection() {
   const status = store.status();
   const controlState = await scrobbleControls.status(status);
-  await globalThis.MirekiScrobble?.handle(status, controlState.mode === "active" ? null : controlState.mode);
-  await Promise.all([scheduleExpiry(), scheduleScrobbleResume()]);
+  // Keep lifecycle alarms independent of pending Trakt work.
+  await Promise.all([
+    globalThis.MirekiScrobble?.handle(status, controlState.mode === "active" ? null : controlState.mode),
+    scheduleExpiry(),
+    scheduleScrobbleResume(),
+  ]);
   return status;
 }
 async function controlPayload(status = store.status()) {
@@ -40,7 +44,7 @@ async function controlPayload(status = store.status()) {
   };
 }
 async function statusResponse() {
-  const status = await processSelection();
+  const status = store.status();
   if (status.kind === "media") {
     status.sync = globalThis.MirekiScrobble?.statusFor(status.source) || { state: "idle" };
     const manual = globalThis.MirekiManualMatch;

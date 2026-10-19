@@ -38,8 +38,6 @@ assert.equal(expected.some((pattern) => pattern.includes("<all_urls>") || patter
 assert.equal(expected.some((pattern) => pattern.includes("amazon.")), false, "retail Amazon domains stay excluded");
 const scripts = manifest.background.scripts;
 assert.equal(scripts[0], "shared/webextension-api.js", "WebExtension compatibility loads before background scripts");
-assert.ok(scripts.indexOf("shared/episode-label.js") < scripts.indexOf("trakt/trakt-matcher.js"),
-  "episode parser loads before Trakt matcher");
 assert.ok(scripts.indexOf("shared/completion-threshold.js") < scripts.indexOf("playback/scrobble-controller.js"),
   "completion threshold contract loads before scrobble controller");
 assert.ok(scripts.indexOf("playback/scrobble-controls.js") < scripts.indexOf("background/background.js"),

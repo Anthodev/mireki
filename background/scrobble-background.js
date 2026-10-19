@@ -6,7 +6,12 @@
     clientId: MirekiAuthConfig.traktClientId,
     fetch: globalThis.fetch.bind(globalThis),
   });
-  const matcher = MirekiTraktMatcher.createTraktMatcher(client);
+  const resolver = MirekiTraktMatcher.createTraktMatcher(client);
+  const matcher = {
+    async match(rawInput) {
+      return resolver.match(MirekiMatchMetadata.parseMatchMetadata(rawInput));
+    },
+  };
   const manualMatches = MirekiManualMatchStore.createManualMatchStore({ storage: browser.storage.local });
   const manualService = MirekiManualMatchService.createManualMatchService(client);
   globalThis.MirekiManualMatch = {

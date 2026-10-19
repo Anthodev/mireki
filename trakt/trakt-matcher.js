@@ -1,19 +1,16 @@
 (function (root, factory) {
-  const episodeApi = root.MirekiEpisodeLabel
-    || (typeof require === "function" ? require("../shared/episode-label.js") : null);
-  const api = factory(episodeApi);
+  const metadataApi = root.MirekiMatchMetadata
+    || (typeof require === "function" ? require("../shared/match-metadata.js") : null);
+  const api = factory(metadataApi);
   if (typeof module === "object" && module.exports) module.exports = api;
   else root.MirekiTraktMatcher = api;
-})(globalThis, (MirekiEpisodeLabel) => {
+})(globalThis, (MirekiMatchMetadata) => {
   const bounded = (value) => typeof value === "string" && value.trim() ? value.trim().slice(0, 300) : null;
   const unique = (values) => [...new Set(values.filter(Boolean))];
-  const languageCode = (value) => typeof value === "string" && /^[a-z]{2}$/i.test(value) ? value.toLocaleLowerCase() : null;
-  const { parseEpisode, parseAbsoluteEpisode } = MirekiEpisodeLabel;
+  const { normalizeTitle, languageCode } = MirekiMatchMetadata;
   const resultItems = (results, type) => results.map((result) => result?.type === type ? result[type] : null)
     .filter((item) => Number.isInteger(item?.ids?.trakt) && item.ids.trakt > 0);
   const resultIds = (results, type) => unique(resultItems(results, type).map((item) => item.ids.trakt));
-  const normalizeTitle = (value) => bounded(value)?.normalize("NFKD").replace(/\p{M}/gu, "")
-    .toLocaleLowerCase().replace(/[^\p{L}\p{N}]+/gu, " ").trim() || "";
   function withinOneEdit(left, right) {
     if (left === right) return true;
     if (Math.abs(left.length - right.length) > 1 || Math.min(left.length, right.length) < 5) return false;
@@ -129,21 +126,14 @@
       }
       return translatedEpisodeCache.get(key);
     }
-    function episodeTitleQueries(title) {
-      const value = bounded(title);
-      if (!value) return [];
-      const stripped = MirekiEpisodeLabel.stripEpisodePrefix(value);
-      return stripped ? unique([stripped].map(normalizeTitle)) : [];
-    }
-    function episodeTitleIds(values, title, episodeNumber, includeAbsolute = false) {
-      const titles = episodeTitleQueries(title);
+    function episodeTitleIds(values, titleQuery, episodeNumber, includeAbsolute = false) {
       const number = Number.isInteger(episodeNumber) && episodeNumber > 0 ? episodeNumber : null;
-      return titles.length ? unique(values.filter((episode) => titles.some((titleValue) => episode.titles.includes(titleValue))
+      return titleQuery ? unique(values.filter((episode) => episode.titles.includes(titleQuery)
         && (number === null || episode.number === number || includeAbsolute && episode.numberAbs === number))
         .map((episode) => episode.traktId)) : [];
     }
     const matchedEpisode = (traktId) => ({ status: "matched", key: `episode:${traktId}`, item: { type: "episode", traktId } });
-    async function episodeTitleIdsForShows(showIds, title, language, episodeNumber, includeAbsolute = false) {
+    async function episodeTitleIdsForShows(showIds, titleQuery, language, episodeNumber, includeAbsolute = false) {
       const titleIds = [];
       const numberedIds = [];
       const absoluteIds = [];
@@ -154,8 +144,8 @@
         const translated = await translatedEpisodes(showId, language);
         complete = complete && canonical.complete && translated.complete;
         for (const catalogue of [canonical, translated]) {
-          titleIds.push(...episodeTitleIds(catalogue.values, title, null));
-          numberedIds.push(...episodeTitleIds(catalogue.values, title, episodeNumber, includeAbsolute));
+          titleIds.push(...episodeTitleIds(catalogue.values, titleQuery, null));
+          numberedIds.push(...episodeTitleIds(catalogue.values, titleQuery, episodeNumber, includeAbsolute));
           const absolute = Number.isInteger(episodeNumber) && episodeNumber > 0
             ? catalogue.values.filter((episode) => episode.numberAbs === episodeNumber).map((episode) => episode.traktId) : [];
           absoluteIds.push(...absolute);
@@ -197,20 +187,16 @@
       const strong = unique(strongIds);
       return { strongIds: strong, weakIds: unique(weakIds).filter((id) => !strong.includes(id)) };
     }
-    async function match({ media, pageTitle }) {
-      const metadata = [media.title, media.artist, media.album, pageTitle];
-      const coordinates = parseEpisode(metadata);
-      const absoluteEpisode = parseAbsoluteEpisode(metadata);
-      const showQueries = unique([media.album, media.artist].map(bounded));
+    async function match({
+      title, showQueries, coordinates, absoluteEpisode, providerEpisodeNumber,
+      episodeTitle, normalizedEpisodeTitle, episodeTitleQuery, sourceEpisodeNumber,
+      hasCompleteCoordinates, language, duration, hasDistinctShowHints,
+    }) {
       const candidates = showQueries.length ? await showCandidates(showQueries) : { strongIds: [], weakIds: [] };
       const weak = !candidates.strongIds.length;
       const showIds = weak ? candidates.weakIds : candidates.strongIds;
       if (showIds.length) {
         if (showIds.length > 3) return { status: "ambiguous" };
-        const cleanedTitle = MirekiEpisodeLabel.stripEpisodePrefix(bounded(media.title));
-        const title = cleanedTitle && !showQueries.some((query) => normalizeTitle(query) === normalizeTitle(cleanedTitle))
-          ? cleanedTitle : null;
-        const normalizedTitle = normalizeTitle(title);
         const directTitleMatches = [];
         const coordinateMatches = [];
         if (coordinates) {
@@ -220,8 +206,8 @@
               const traktId = value?.ids?.trakt;
               if (Number.isInteger(traktId) && traktId > 0) {
                 coordinateMatches.push(traktId);
-                if (normalizedTitle && [value.title, value.original_title].some((valueTitle) =>
-                  normalizeTitle(valueTitle) === normalizedTitle)) directTitleMatches.push(traktId);
+                if (normalizedEpisodeTitle && [value.title, value.original_title].some((valueTitle) =>
+                  normalizeTitle(valueTitle) === normalizedEpisodeTitle)) directTitleMatches.push(traktId);
               }
             } catch (error) {
               if (error?.status !== 404) throw error;
@@ -229,18 +215,18 @@
           }
         }
         const coordinateIds = unique(coordinateMatches);
-        const number = coordinates?.episode || absoluteEpisode || media.episodeNumber;
-        const evidence = title
-          ? await episodeTitleIdsForShows(showIds, title, languageCode(media.language), number, Boolean(absoluteEpisode))
+        const number = coordinates?.episode || absoluteEpisode || providerEpisodeNumber;
+        const evidence = episodeTitle
+          ? await episodeTitleIdsForShows(showIds, episodeTitleQuery, language, number, Boolean(absoluteEpisode))
           : { titleIds: [], numberedIds: [], complete: true, absoluteIds: [], completeAbsoluteIds: [] };
         // Direct responses prove title + requested coordinates even when a catalogue is incomplete.
         evidence.titleIds = unique([...evidence.titleIds, ...directTitleMatches]);
         evidence.numberedIds = unique([...evidence.numberedIds, ...directTitleMatches]);
         // Retry other languages only when normal matching has neither an exact title
         // nor a resolved/ambiguous strong coordinate or show result.
-        if (title && !evidence.titleIds.length
+        if (episodeTitle && !evidence.titleIds.length
           && (weak || !coordinateIds.length && showIds.length === 1)) {
-          const multilingual = await episodeTitleIdsForShows(showIds, title, "all", number, Boolean(absoluteEpisode));
+          const multilingual = await episodeTitleIdsForShows(showIds, episodeTitleQuery, "all", number, Boolean(absoluteEpisode));
           evidence.titleIds = multilingual.titleIds;
           evidence.numberedIds = multilingual.numberedIds;
           evidence.complete = multilingual.complete;
@@ -271,11 +257,10 @@
         // Final fallback: normal title/coordinate resolution has left one strong show and no exact title evidence.
         // Only a source E-only label can supply absolute numbering. A separate season
         // hint is allowed, but complete coordinates and conflicting signals are not.
-        const sourceEpisode = MirekiEpisodeLabel.findEpisodeNumber(media.title)?.episode;
-        if (sourceEpisode && (coordinates?.episode === sourceEpisode || absoluteEpisode === sourceEpisode)
-          && !metadata.some((value) => MirekiEpisodeLabel.findCoordinates(value))) {
+        if (sourceEpisodeNumber && (coordinates?.episode === sourceEpisodeNumber || absoluteEpisode === sourceEpisodeNumber)
+          && !hasCompleteCoordinates) {
           const canonical = await episodes(showIds[0]);
-          const canonicalIds = canonical.values.filter((episode) => episode.numberAbs === sourceEpisode)
+          const canonicalIds = canonical.values.filter((episode) => episode.numberAbs === sourceEpisodeNumber)
             .map((episode) => episode.traktId);
           const absoluteIds = unique([...canonicalIds, ...evidence.absoluteIds]);
           if (absoluteIds.length) {
@@ -286,21 +271,19 @@
             return matchedEpisode(absoluteIds[0]);
           }
         }
-        return { status: coordinates || absoluteEpisode || media.episodeNumber ? "unmatched" : "needsEpisode" };
+        return { status: coordinates || absoluteEpisode || providerEpisodeNumber ? "unmatched" : "needsEpisode" };
       }
       if (coordinates || absoluteEpisode) return { status: "unmatched" };
-      const title = bounded(media.title);
-      const distinctShowHints = showQueries.filter((value) => value.toLocaleLowerCase() !== title?.toLocaleLowerCase());
-      if (distinctShowHints.length || !Number.isFinite(media.duration) || media.duration < 60 * 60) return { status: "unmatched" };
+      if (hasDistinctShowHints || !Number.isFinite(duration) || duration < 60 * 60) return { status: "unmatched" };
       if (!title) return { status: "unmatched" };
       const movieResults = await client.searchExact("movie", title);
       const movieIds = resultIds(movieResults, "movie");
       if (movieIds.length !== 1) return { status: movieIds.length > 1 ? "ambiguous" : "unmatched" };
       const movie = resultItems(movieResults, "movie").find((item) => item.ids.trakt === movieIds[0]);
-      if (!runtimeMatches(media.duration, movie?.runtime)) return { status: "unmatched" };
+      if (!runtimeMatches(duration, movie?.runtime)) return { status: "unmatched" };
       return { status: "matched", key: `movie:${movieIds[0]}`, item: { type: "movie", traktId: movieIds[0] } };
     }
     return { match };
   }
-  return { createTraktMatcher, parseEpisode, parseAbsoluteEpisode, resultIds, runtimeMatches, withinOneEdit };
+  return { createTraktMatcher, resultIds, runtimeMatches, withinOneEdit };
 });

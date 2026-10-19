@@ -27,6 +27,7 @@
       "services/trakt-auth.js",
       "shared/artwork-url.js",
       "shared/episode-label.js",
+      "shared/match-metadata.js",
       "shared/session-store.js",
       "trakt/trakt-client.js",
       "trakt/manual-match-service.js",
