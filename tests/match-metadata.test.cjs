@@ -19,24 +19,24 @@ const media = (overrides = {}) => ({
 // Split-field coordinates and per-field completeness.
 const splitSeason = parseMatchMetadata({
   media: media({
-    title: "E3 - Paisible quotidien retrouvé",
-    artist: "Mushoku Tensei",
+    title: "E3 - Un foyer paisible retrouvé",
+    artist: "Wayfarer's Return: A Second Beginning",
     language: "fr",
     duration: 1440,
   }),
-  pageTitle: "Saison 3 Paisible quotidien retrouvé - Regardez sur Crunchyroll",
+  pageTitle: "Saison 3 Un foyer paisible retrouvé - Regardez sur Crunchyroll",
 });
 assert.deepEqual(splitSeason.coordinates, { season: 3, episode: 3 });
 assert.equal(splitSeason.absoluteEpisode, null, "season evidence blocks an absolute interpretation");
 assert.equal(splitSeason.hasCompleteCoordinates, false,
   "coordinates assembled from separate fields are not complete in any one field");
-assert.equal(splitSeason.episodeTitle, "Paisible quotidien retrouvé");
-assert.equal(splitSeason.normalizedEpisodeTitle, "paisible quotidien retrouve");
-assert.equal(splitSeason.episodeTitleQuery, "paisible quotidien retrouve");
+assert.equal(splitSeason.episodeTitle, "Un foyer paisible retrouvé");
+assert.equal(splitSeason.normalizedEpisodeTitle, "un foyer paisible retrouve");
+assert.equal(splitSeason.episodeTitleQuery, "un foyer paisible retrouve");
 assert.equal(splitSeason.sourceEpisodeNumber, 3);
 
 const completeCoordinates = parseMatchMetadata({
-  media: media({ title: "S3E3 - Paisible quotidien retrouvé", artist: "Mushoku Tensei" }),
+  media: media({ title: "S3E3 - Un foyer paisible retrouvé", artist: "Wayfarer's Return: A Second Beginning" }),
 });
 assert.deepEqual(completeCoordinates.coordinates, { season: 3, episode: 3 });
 assert.equal(completeCoordinates.hasCompleteCoordinates, true);
@@ -86,9 +86,9 @@ assert.deepEqual(repeatedHints.showQueries, ["Other  Show", "Other Show"]);
 assert.equal(repeatedHints.hasDistinctShowHints, true);
 
 const sharedHint = parseMatchMetadata({
-  media: media({ title: "Black Clover", artist: "Black Clover", album: "Black Clover" }),
+  media: media({ title: "Ashen Crown", artist: "Ashen Crown", album: "Ashen Crown" }),
 });
-assert.deepEqual(sharedHint.showQueries, ["Black Clover"]);
+assert.deepEqual(sharedHint.showQueries, ["Ashen Crown"]);
 assert.equal(sharedHint.episodeTitle, null, "a title that only repeats a show query is not an episode title");
 assert.equal(sharedHint.normalizedEpisodeTitle, "");
 assert.equal(sharedHint.episodeTitleQuery, "");
@@ -108,18 +108,18 @@ assert.equal(caseHint.hasDistinctShowHints, false, "case alone is not a distinct
 
 // Source, page-title, and provider numbering stay distinct signals.
 const sourceHint = parseMatchMetadata({
-  media: media({ title: "E173 - Le gardien noir", artist: "Black Clover", language: "fr" }),
-  pageTitle: "Black Clover Saison 2",
+  media: media({ title: "E173 - Le veilleur de cendre", artist: "Ashen Crown", language: "fr" }),
+  pageTitle: "Ashen Crown Saison 2",
 });
 assert.equal(sourceHint.sourceEpisodeNumber, 173, "only the source title supplies the source E-only label");
 assert.deepEqual(sourceHint.coordinates, { season: 2, episode: 173 });
 assert.equal(sourceHint.absoluteEpisode, null);
 assert.equal(sourceHint.hasCompleteCoordinates, false);
-assert.equal(sourceHint.episodeTitle, "Le gardien noir");
+assert.equal(sourceHint.episodeTitle, "Le veilleur de cendre");
 
 const pageOnlyHint = parseMatchMetadata({
-  media: media({ title: "Le gardien noir", artist: "Black Clover" }),
-  pageTitle: "E173 - Le gardien noir",
+  media: media({ title: "Le veilleur de cendre", artist: "Ashen Crown" }),
+  pageTitle: "E173 - Le veilleur de cendre",
 });
 assert.equal(pageOnlyHint.sourceEpisodeNumber, null, "an E-label in the page title is not a source label");
 assert.equal(pageOnlyHint.absoluteEpisode, 173);
@@ -127,14 +127,14 @@ assert.equal(pageOnlyHint.coordinates, null);
 assert.equal(pageOnlyHint.hasCompleteCoordinates, false);
 
 const providerHint = parseMatchMetadata({
-  media: media({ title: "Black Guardian", artist: "Black Clover", episodeNumber: 173 }),
+  media: media({ title: "Cinder Warden", artist: "Ashen Crown", episodeNumber: 173 }),
 });
 assert.equal(providerHint.providerEpisodeNumber, 173);
 assert.equal(providerHint.absoluteEpisode, null, "a provider hint is not an episode label");
 assert.equal(providerHint.sourceEpisodeNumber, null);
 
 const rawProviderHint = parseMatchMetadata({
-  media: media({ title: "Black Guardian", artist: "Black Clover", episodeNumber: "173" }),
+  media: media({ title: "Cinder Warden", artist: "Ashen Crown", episodeNumber: "173" }),
 });
 assert.equal(rawProviderHint.providerEpisodeNumber, "173", "provider hints are never coerced");
 assert.equal(rawProviderHint.absoluteEpisode, null);

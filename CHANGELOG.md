@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [1.3.0] - 2026-10-19
+
 ### Features
 
 - Resolve episodes from positive evidence: exact canonical, original, or requested-language titles combined with numeric hints. A localized title missing from Trakt no longer contradicts reliable coordinates, and only an exact title match can correct misnumbered coordinates.
@@ -14,12 +16,15 @@
 
 - Mark truncated episode catalogues as incomplete, so response and catalogue-size limits cannot justify a uniqueness-based correction.
 - Separate provider-neutral playback-metadata interpretation from the shared Trakt resolver, keeping matching rules, raw display and saved correction identities unchanged.
+- Run CI and release workflows on Avrea Ubuntu 24.04 runners with one vCPU.
 
 ### Fixes
 
 - Show the popup's intermediate matching state without waiting for Trakt requests, and keep playback-expiry alarms armed while matching is pending.
 - Preserve episode titles and explicit E-number hints alongside split-season labels such as `Season 2: Part 2`, without converting season parts into Trakt seasons on Netflix and Prime Video.
 - Recover Netflix series headings and heading-plus-title scopes when an episode has no number, and replace the literal `Netflix` artist placeholder with the extracted series or none.
+
+Full changelog: [v1.2.0...v1.3.0](https://github.com/Anthodev/mireki/compare/v1.2.0...v1.3.0)
 
 ## [1.2.0] - 2026-08-13
 

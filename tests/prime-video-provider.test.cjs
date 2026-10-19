@@ -51,28 +51,28 @@ const extract = (scope, url, images = [], metadata = {}) => extractMetadata({
   document: page(url, images), mediaElement: video(scope), metadata,
 });
 
-assert.deepEqual(extract(player("Spider-Noir", "Saison 1, ép. 1 Passez dans mon bureau")), {
-  title: "S1E1 - Passez dans mon bureau",
-  artist: "Spider-Noir",
+assert.deepEqual(extract(player("Nocturne", "Saison 1, ép. 1 Entrez dans mon bureau")), {
+  title: "S1E1 - Entrez dans mon bureau",
+  artist: "Nocturne",
 });
-const theBoysArtwork = artwork(
+const vanguardArtwork = artwork(
   "https://m.media-amazon.com/images/S/pv-target-images/current._SX1920_FMavif_PQ65_.jpg",
-  "The Boys",
+  "The Vanguard",
 );
-assert.deepEqual(extract(player("The Boys", "Saison 1, ép. 1 Le nom de la règle"), undefined, [theBoysArtwork]), {
-  title: "S1E1 - Le nom de la règle",
-  artist: "The Boys",
+assert.deepEqual(extract(player("The Vanguard", "Saison 1, ép. 1 Le poids des règles"), undefined, [vanguardArtwork]), {
+  title: "S1E1 - Le poids des règles",
+  artist: "The Vanguard",
   artwork: "https://m.media-amazon.com/images/S/pv-target-images/current._SX1920_FMavif_PQ65_.jpg",
 }, "title-confirmed Prime detail hero supplies artwork");
 assert.equal("artwork" in extract(
-  player("Fallout", "Saison 1, ép. 1 La Fin"), undefined, [theBoysArtwork],
+  player("Ashfall", "Saison 1, ép. 1 Le Signal"), undefined, [vanguardArtwork],
 ), false, "hero from another detail page is rejected");
 assert.equal("artwork" in extract(
-  player("The Boys", "Saison 1, ép. 1 Le nom de la règle"), undefined, [theBoysArtwork],
+  player("The Vanguard", "Saison 1, ép. 1 Le poids des règles"), undefined, [vanguardArtwork],
   { artwork: "https://standard.test/session.jpg" },
 ), false, "standard Media Session artwork keeps priority");
-assert.deepEqual(extract(player("Series", "Season 2, Ep. 4 The Ghouls")), {
-  title: "S2E4 - The Ghouls",
+assert.deepEqual(extract(player("Series", "Season 2, Ep. 4 The Ember Walkers")), {
+  title: "S2E4 - The Ember Walkers",
   artist: "Series",
 });
 assert.deepEqual(extract(player("Series", "S3 E12 Finale", "atvwebplayersdk-episode-info")), {
@@ -100,22 +100,22 @@ assert.deepEqual(extract(player("Series", "Season 2: Part 2, E3 - Titre Part 2")
 }, "title words are not stripped as season decorations");
 
 const stale = player("Wrong show", "Season 9, Ep. 9 Wrong episode");
-const active = player("Spider-Noir", "Saison 1, épisode 2 Sois prudent, tu vivras longtemps");
+const active = player("Nocturne", "Saison 1, épisode 2 Reste discret, tu verras demain");
 assert.deepEqual(extractMetadata({
   document: { ...page(), querySelector: () => stale },
   mediaElement: video(active),
-}), { title: "S1E2 - Sois prudent, tu vivras longtemps", artist: "Spider-Noir" },
+}), { title: "S1E2 - Reste discret, tu verras demain", artist: "Nocturne" },
 "selected video's player scope prevents stale sibling metadata from winning");
 
-assert.equal(extract(player("Spider-Noir", "Reprendre S. 1 Ép. 1")), null,
+assert.equal(extract(player("Nocturne", "Reprendre S. 1 Ép. 1")), null,
   "detail-page resume label is not accepted as current episode metadata");
-assert.equal(extract(player("Spider-Noir", "1. Passez dans mon bureau")), null,
+assert.equal(extract(player("Nocturne", "1. Entrez dans mon bureau")), null,
   "episode-list title alone is not current playback evidence");
 assert.equal(extract(player("Series", "S1E3 / S2E3 Conflicting metadata")), null,
   "conflicting player coordinates are rejected");
 assert.equal(extract(player("Series", "Season 1 Episode 2nd Place")), null,
   "ordinal text is not accepted as explicit player coordinates");
-assert.equal(extract(player("Spider-Noir", "Live now")), null);
+assert.equal(extract(player("Nocturne", "Live now")), null);
 assert.equal(extract(player("", "Saison 1, ép. 1 Episode")), null);
 assert.equal(extract(player("Series", "Saison 1000, ép. 1 Episode")), null);
 assert.equal(extract(player("Series", "Saison 1, ép. 10000 Episode")), null);
@@ -126,7 +126,7 @@ assert.equal(extract(player("x".repeat(400), "Saison 1, ép. 1 Episode")).artist
 
 const mutationPlayer = player("Series", "Saison 1, ép. 1 Episode");
 assert.equal(isMetadataMutation({ target: {}, addedNodes: [mutationPlayer.title], removedNodes: [] }), true);
-assert.equal(isMetadataMutation({ target: {}, addedNodes: [theBoysArtwork], removedNodes: [] }), true,
+assert.equal(isMetadataMutation({ target: {}, addedNodes: [vanguardArtwork], removedNodes: [] }), true,
   "Prime hero insertion emits updated artwork");
 assert.equal(isMetadataMutation({
   target: { matches: () => false, closest: () => null, querySelector: () => mutationPlayer.title },

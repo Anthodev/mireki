@@ -1,9 +1,9 @@
 const assert = require("node:assert/strict");
 const test = require("node:test");
 
-const RAW_TITLE = "E173 - Le gardien noir";
-const RAW_ARTIST = "Black Clover";
-const RAW_PAGE_TITLE = "Black Clover Saison 2";
+const RAW_TITLE = "E173 - Le veilleur de cendre";
+const RAW_ARTIST = "Ashen Crown";
+const RAW_PAGE_TITLE = "Ashen Crown Saison 2";
 const MATCHED_EPISODE = 14546332;
 
 // Real store, controls, controller, parser, resolver and Trakt client. Only the
@@ -57,7 +57,7 @@ const episodeFixture = {
   season: 2,
   number: 3,
   number_abs: 173,
-  title: "Black Guardian",
+  title: "Cinder Warden",
   ids: { trakt: MATCHED_EPISODE },
 };
 const response = (status, value) => ({

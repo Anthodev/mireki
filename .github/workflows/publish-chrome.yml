@@ -37,7 +37,7 @@ concurrency:
 jobs:
   publish:
     if: vars.ENABLE_CHROME_PUBLISH == 'true'
-    runs-on: ubuntu-latest
+    runs-on: avrea-ubuntu-24.04-1-vcpu
     timeout-minutes: 15
     environment: chrome-web-store
     steps:

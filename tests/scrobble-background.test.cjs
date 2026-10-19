@@ -17,7 +17,7 @@ const fixtureClient = {
   async searchExact(type, query) {
     if (type !== "show") return [];
     if (query === "Series") return [{ type: "show", show: { title: "Series", ids: { trakt: 80 } } }];
-    if (query === "Black Clover") return [{ type: "show", show: { title: "Black Clover", ids: { trakt: 121959 } } }];
+    if (query === "Ashen Crown") return [{ type: "show", show: { title: "Ashen Crown", ids: { trakt: 121959 } } }];
     return [];
   },
   async searchShows() { return []; },
@@ -26,7 +26,7 @@ const fixtureClient = {
     return showId === 80
       ? [{ number: 4, episodes: [{ season: 4, number: 3, title: "Titre", ids: { trakt: 403 } }] }]
       : [{ number: 2, episodes: [{
-        season: 2, number: 3, number_abs: 173, title: "Black Guardian", ids: { trakt: 14546332 },
+        season: 2, number: 3, number_abs: 173, title: "Cinder Warden", ids: { trakt: 14546332 },
       }] }];
   },
   async seasonEpisodes() { return []; },
@@ -86,7 +86,7 @@ assert.deepEqual(thresholdChanges, [85, undefined], "non-local storage changes a
     media: { title: "E3 - Titre", artist: "Series", album: "Season 2: Part 2" }, pageTitle: "",
   })).item.traktId, 403, "real composition resolves split-season metadata before resolution");
   assert.equal((await capturedOptions.matcher.match({
-    media: { title: "E173 - Le gardien noir", artist: "Black Clover", language: "fr" }, pageTitle: "",
+    media: { title: "E173 - Le veilleur de cendre", artist: "Ashen Crown", language: "fr" }, pageTitle: "",
   })).item.traktId, 14546332, "real composition resolves an E-only source label through strict absolute evidence");
   console.log("scrobble background checks: OK");
 })().catch((error) => { console.error(error); process.exitCode = 1; });

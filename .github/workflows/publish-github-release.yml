@@ -18,7 +18,7 @@ concurrency:
 
 jobs:
   publish:
-    runs-on: ubuntu-latest
+    runs-on: avrea-ubuntu-24.04-1-vcpu
     timeout-minutes: 10
     environment: github-releases
     steps:

@@ -42,14 +42,14 @@ function siblingTitleElement(show, coordinate, episode) {
   return { title, parent };
 }
 
-const netflixEpisode = siblingTitleElement("Avatar : Le dernier maître de l’air", "E1", "Un endroit sûr");
+const netflixEpisode = siblingTitleElement("Emberfall : Le dernier gardien du ciel", "E1", "Un havre tranquille");
 const netflixEpisodeMetadata = extractMetadata({
   document: page("https://www.netflix.com/watch/81023598", netflixEpisode.title, "fr-FR"),
   metadata: { title: "Netflix", artist: null },
 });
 assert.deepEqual(netflixEpisodeMetadata, {
-  title: "Un endroit sûr",
-  artist: "Avatar : Le dernier maître de l’air",
+  title: "Un havre tranquille",
+  artist: "Emberfall : Le dernier gardien du ciel",
   episodeNumber: 1,
 }, "E-only Netflix label separates series and episode for display");
 assert.equal([netflixEpisodeMetadata.title, netflixEpisodeMetadata.artist].join(" ").includes("E1"), false,
@@ -57,27 +57,27 @@ assert.equal([netflixEpisodeMetadata.title, netflixEpisodeMetadata.artist].join(
 assert.equal(netflixEpisodeMetadata.episodeNumber, 1,
   "E-only label is retained separately as an within-season number hint");
 
-const siblingEpisode = siblingTitleElement("Golden Kamuy", "S5:E3", "Le favori de Toshizo");
+const siblingEpisode = siblingTitleElement("Silver Trail", "S5:E3", "Le favori de Vaskiro");
 assert.deepEqual(extractMetadata({
   document: page("https://www.netflix.com/watch/81743400", siblingEpisode.title),
   metadata: { title: "Netflix", artist: null },
-}), { title: "S5E3 - Le favori de Toshizo", artist: "Golden Kamuy" }, "episode metadata may be siblings of the data-uia title heading");
+}), { title: "S5E3 - Le favori de Vaskiro", artist: "Silver Trail" }, "episode metadata may be siblings of the data-uia title heading");
 assert.equal(isMetadataMutation({
   target: siblingEpisode.parent,
   addedNodes: [siblingEpisode.parent.children[2]],
   removedNodes: [],
 }), true, "sibling episode changes trigger an observation");
 
-const episode = titleElement([["Golden Kamuy", "H4"], ["S5:E3", "SPAN"], ["Le favori de Toshizo", "SPAN"]]);
+const episode = titleElement([["Silver Trail", "H4"], ["S5:E3", "SPAN"], ["Le favori de Vaskiro", "SPAN"]]);
 assert.deepEqual(extractMetadata({
   document: page("https://www.netflix.com/watch/81743401", episode),
   metadata: { title: "Netflix", artist: "Netflix" },
-}), { title: "S5E3 - Le favori de Toshizo", artist: "Golden Kamuy" });
+}), { title: "S5E3 - Le favori de Vaskiro", artist: "Silver Trail" });
 
 assert.deepEqual(extractMetadata({
   document: page("https://www.netflix.com/watch/81743401", null),
   metadata: { title: "Netflix", artist: null },
-}), { title: "S5E3 - Le favori de Toshizo", artist: "Golden Kamuy" }, "hidden controls reuse volatile metadata for same watch ID");
+}), { title: "S5E3 - Le favori de Vaskiro", artist: "Silver Trail" }, "hidden controls reuse volatile metadata for same watch ID");
 
 assert.equal(extractMetadata({
   document: page("https://www.netflix.com/watch/81743402", null),
@@ -94,11 +94,11 @@ assert.equal(extractMetadata({
   metadata: { title: "Useful standard title", artist: null },
 }), null, "useful standard movie title keeps priority");
 
-const splitCoordinate = titleElement([["Arcane", "H4"], ["S2", "SPAN"], ["E4", "SPAN"], ["Paint the Town Blue", "SPAN"]]);
+const splitCoordinate = titleElement([["Runeglass", "H4"], ["S2", "SPAN"], ["E4", "SPAN"], ["The Glass District", "SPAN"]]);
 assert.deepEqual(extractMetadata({
   document: page("https://www.netflix.com/watch/81719603", splitCoordinate),
-  metadata: { title: "Paint the Town Blue", artist: null },
-}), { title: "S2E4 - Paint the Town Blue", artist: "Arcane" }, "explicit coordinates enrich useful Media Session title");
+  metadata: { title: "The Glass District", artist: null },
+}), { title: "S2E4 - The Glass District", artist: "Runeglass" }, "explicit coordinates enrich useful Media Session title");
 
 const conflictingCoordinates = titleElement([
   ["Show", "H4"], ["S1E3", "SPAN"], ["S2E3", "SPAN"], ["Current title", "SPAN"],

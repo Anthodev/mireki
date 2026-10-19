@@ -9,8 +9,8 @@ const client = createTraktClient({ clientId: "public", getAccessToken: async () 
   assert.equal(requests[0].init.headers.Authorization, "Bearer secret-token");
   assert.equal(requests[0].init.headers["trakt-api-key"], "public");
   response = { ok: true, status: 200, headers: { get: () => null }, json: async () => [] };
-  await client.searchShows("Golden Kamui");
-  assert.match(requests.at(-1).url, /\/search\/show\?query=Golden%20Kamui&limit=10&extended=full$/);
+  await client.searchShows("Silver Trails");
+  assert.match(requests.at(-1).url, /\/search\/show\?query=Silver%20Trails&limit=10&extended=full$/);
   response = { ok: true, status: 200, headers: { get: () => null }, json: async () => [] };
   await client.searchMovies("Arrival");
   assert.match(requests.at(-1).url, /\/search\/movie\?query=Arrival&limit=10&extended=full$/);

@@ -44,7 +44,7 @@ concurrency:
 
 jobs:
   publish:
-    runs-on: ubuntu-latest
+    runs-on: avrea-ubuntu-24.04-1-vcpu
     timeout-minutes: 20
     environment: firefox-addons
     steps:
