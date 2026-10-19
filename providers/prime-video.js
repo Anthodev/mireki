@@ -30,10 +30,17 @@
     const subtitle = text(value);
     if (!subtitle) return null;
     const coordinates = MirekiEpisodeLabel.findCoordinates(subtitle);
-    if (!coordinates || coordinates.index !== 0) return null;
+    if (coordinates) {
+      if (coordinates.index !== 0) return null;
+      const title = MirekiEpisodeLabel.stripEpisodePrefix(subtitle);
+      if (!title || title === subtitle) return null;
+      return { title: text(`S${coordinates.season}E${coordinates.episode} - ${title}`) };
+    }
+    const episode = MirekiEpisodeLabel.findEpisodeNumber(subtitle);
+    if (!episode) return null;
     const title = MirekiEpisodeLabel.stripEpisodePrefix(subtitle);
-    if (!title || title === subtitle) return null;
-    return { title: text(`S${coordinates.season}E${coordinates.episode} - ${title}`) };
+    if (!title || title === subtitle || MirekiEpisodeLabel.isSeasonOrPartLabel(title)) return null;
+    return { title, episodeNumber: episode.episode };
   }
 
   function heroArtwork(document, artist) {

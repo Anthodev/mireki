@@ -73,7 +73,7 @@
     }
     async function seasonEpisodes(showId, season, language) {
       if (!integer(showId) || !Number.isInteger(season) || season < 0
-        || typeof language !== "string" || !/^[a-z]{2}$/i.test(language)) throw new Error("Invalid translated season identity");
+        || typeof language !== "string" || language !== "all" && !/^[a-z]{2}$/i.test(language)) throw new Error("Invalid translated season identity");
       const value = await request(`/shows/${showId}/seasons/${season}?extended=full&translations=${language.toLocaleLowerCase()}`);
       return Array.isArray(value) ? value.slice(0, 500) : [];
     }

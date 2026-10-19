@@ -80,6 +80,25 @@ assert.deepEqual(extract(player("Series", "S3 E12 Finale", "atvwebplayersdk-epis
   artist: "Series",
 });
 
+for (const subtitle of ["E3 - Titre", "Episode 3: Titre", "Saison 2, Partie 2, ép. 3 Titre",
+  "Season 2: Part 2, E3 - Titre"]) {
+  assert.deepEqual(extract(player("Series", subtitle)), { title: "Titre", artist: "Series", episodeNumber: 3 },
+    "E-only or qualified prefix preserves only the explicit number hint and real title");
+}
+for (const subtitle of ["E3", "Episode 3", "Season 2: Part 2, E3", "Reprendre E3 - Titre",
+  "Series E3 - Titre", "Part 2, E3 - Titre", "Season 2 Episode 3 / Episode 4 Titre",
+  "Season 2: Part 2, E3 / E4 Titre", "Season 2: Part 2, S1E3 / S2E3 Titre"]) {
+  assert.equal(extract(player("Series", subtitle)), null, "bare, free-text, resume and conflicting labels stay rejected");
+}
+assert.equal(extract(player("", "E3 - Titre")), null, "E-only metadata still requires an artist in selected player");
+assert.deepEqual(extractMetadata({
+  document: { ...page(), querySelector: () => player("Wrong show", "E3 - Wrong title") },
+  mediaElement: video(player("Series", "Season 2: Part 2, E3 - Titre")),
+}), { title: "Titre", artist: "Series", episodeNumber: 3 }, "qualified E-only parsing stays in selected player");
+assert.deepEqual(extract(player("Series", "Season 2: Part 2, E3 - Titre Part 2")), {
+  title: "Titre Part 2", artist: "Series", episodeNumber: 3,
+}, "title words are not stripped as season decorations");
+
 const stale = player("Wrong show", "Season 9, Ep. 9 Wrong episode");
 const active = player("Spider-Noir", "Saison 1, épisode 2 Sois prudent, tu vivras longtemps");
 assert.deepEqual(extractMetadata({

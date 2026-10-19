@@ -79,14 +79,14 @@ const result = (type, id, runtime = 100) => ({ type, [type]: { title: "Canonical
   ));
   assert.equal((await goldenKamuy.match({
     media: { title: "Episode 52", artist: "Golden Kamuy", album: null }, pageTitle: "",
-  })).status, "unmatched", "E-only number without episode title evidence never guesses a season");
+  })).item.traktId, 5203, "bare E-only label resolves a unique explicit absolute number without inferring a season");
   let seasonLoads = 0;
   const cachedAbsolute = createTraktMatcher({
     async searchExact(type, query) { return type === "show" && query === "Cached Series" ? [result("show", 22)] : []; },
     async searchShows() { return []; },
-    async seasons() { seasonLoads++; return [{ episodes: [{ number_abs: 52, ids: { trakt: 5203 } }] }]; },
+    async seasons() { seasonLoads++; return [{ episodes: [{ title: "Cached title", number_abs: 52, ids: { trakt: 5203 } }] }]; },
   });
-  const cachedMedia = { media: { title: "Episode 52", artist: "Cached Series", album: null }, pageTitle: "" };
+  const cachedMedia = { media: { title: "E52 - Cached title", artist: "Cached Series", album: null }, pageTitle: "" };
   await cachedAbsolute.match(cachedMedia);
   await cachedAbsolute.match(cachedMedia);
   assert.equal(seasonLoads, 1, "absolute episode lists are cached per show");
@@ -121,6 +121,7 @@ const result = (type, id, runtime = 100) => ({ type, [type]: { title: "Canonical
       requestedKonosubaEpisode = { showId, season, number };
       return { season, number, ids: { trakt: 2455355 } };
     },
+    async seasons() { return [{ number: 2, episodes: [{ season: 2, number: 9, ids: { trakt: 2455355 } }] }]; },
   });
   assert.equal((await konosuba.match({
     media: {
@@ -140,6 +141,7 @@ const result = (type, id, runtime = 100) => ({ type, [type]: { title: "Canonical
       requestedMushokuEpisode = { showId, season, number };
       return { season, number, ids: { trakt: 14270741 } };
     },
+    async seasons() { return [{ number: 3, episodes: [{ season: 3, number: 3, ids: { trakt: 14270741 } }] }]; },
   });
   assert.equal((await mushokuPageTitle.match({
     media: {
@@ -230,6 +232,8 @@ const result = (type, id, runtime = 100) => ({ type, [type]: { title: "Canonical
       ghostEpisodeRequests.push({ showId, season, number });
       return { season, number, ids: { trakt: 241680 } };
     },
+    async seasons() { return [{ number: 1, episodes: [{ season: 1, number: 1, ids: { trakt: 241680 } }] }]; },
+    async seasonEpisodes() { return []; },
   });
   assert.deepEqual(await ghostInTheShell.match({
     media: {
@@ -297,6 +301,95 @@ const result = (type, id, runtime = 100) => ({ type, [type]: { title: "Canonical
     pageTitle: "Prime Video: Fallout - Season 1",
   })).status, "ambiguous", "coordinates without title evidence never choose among shows");
 
+  function weakMatcher({ ids = [601], catalogue, exact = {}, broad = {} } = {}) {
+    return createTraktMatcher({
+      async searchExact(type, query) { return type === "show" ? exact[query] || [] : []; },
+      async searchShows(query) {
+        return broad[query] || ids.map((id) => ({ type: "show", show: {
+          title: `Canonical Show ${id}`, ids: { trakt: id },
+        } }));
+      },
+      async episode(showId) { return { ids: { trakt: showId * 10 + 3 } }; },
+      async seasons(showId) {
+        return catalogue ? catalogue(showId) : [{ number: 4, episodes: [{
+          season: 4, number: 3, number_abs: 27, title: "Expected title", ids: { trakt: showId * 10 + 3 },
+        }] }];
+      },
+    });
+  }
+  const weakObservation = (title, extra = {}) => ({
+    media: { title, artist: "Nom français", ...extra }, pageTitle: "",
+  });
+  for (const [title, extra] of [
+    ["S1E3 - Expected title", {}],
+    ["E27 - Expected title", {}],
+    ["Expected title", { episodeNumber: 3 }],
+  ]) {
+    assert.equal((await weakMatcher().match(weakObservation(title, extra))).item.traktId, 6013,
+      "noncanonical broad show requires exact episode title and numeric corroboration");
+  }
+  for (const [title, extra] of [
+    ["S1E3", {}], ["Expected title", {}], ["Wrong title", { episodeNumber: 3 }],
+    ["Expected title", { episodeNumber: 27 }],
+  ]) {
+    assert.equal((await weakMatcher().match(weakObservation(title, extra))).status, "unmatched",
+      "weak show never uses coordinates alone, title alone, or adapter number as absolute numbering");
+  }
+  assert.equal((await weakMatcher({ ids: [601, 602] })
+    .match(weakObservation("Expected title", { episodeNumber: 3 }))).status, "ambiguous",
+  "multiple numerically confirmed weak episodes are ambiguous");
+  assert.equal((await weakMatcher({ ids: [601, 601, 601, 601] })
+    .match(weakObservation("E3 - Expected title"))).item.traktId, 6013,
+  "duplicate candidates are removed before the three-show limit");
+  assert.equal((await weakMatcher({ ids: [601, 602, 603, 604] })
+    .match(weakObservation("E3 - Expected title"))).status, "ambiguous",
+  "more than three distinct weak candidates never silently selects a prefix");
+  const incompleteWeak = () => weakMatcher({ catalogue: (showId) => [
+    { number: 4, episodes: Array.from({ length: 500 }, (_, index) => ({
+      number: index === 0 ? 3 : index + 30, title: index === 0 ? "Expected title" : "Other title",
+      ids: { trakt: index === 0 ? showId * 10 + 3 : 80000 + index },
+    })) },
+  ] });
+  assert.equal((await incompleteWeak().match(weakObservation("E3 - Expected title"))).status, "ambiguous",
+    "partial weak catalogue cannot prove uniqueness of numeric title evidence");
+  assert.equal((await incompleteWeak().match(weakObservation("S1E3 - Expected title"))).item.traktId, 6013,
+    "positive title plus explicit coordinates remains usable with partial catalogue");
+  const strongPreferred = weakMatcher({
+    exact: { "Known Show": [{ type: "show", show: { title: "Known Show", ids: { trakt: 602 } } }] },
+    catalogue: (showId) => [{ number: 4, episodes: [{
+      number: 3, title: showId === 601 ? "Expected title" : "Other title",
+      ids: { trakt: showId * 10 + 3 },
+    }] }],
+  });
+  assert.equal((await strongPreferred.match(weakObservation("E3 - Expected title", { album: "Known Show" }))).status,
+    "unmatched", "weak candidates never replace an unresolved strong show");
+  assert.equal((await weakMatcher({ ids: [] }).match(weakObservation("E3 - Expected title"))).status,
+    "unmatched", "an unindexed localized show remains unresolved");
+
+  const numericWeak = weakMatcher({ catalogue: () => [{ number: 4, episodes: [
+    { number: 3, title: "Expected title", ids: { trakt: 6013 } },
+    { number: 8, title: "Expected title", ids: { trakt: 6018 } },
+  ] }] });
+  assert.equal((await numericWeak.match(weakObservation("E3 - Expected title"))).item.traktId, 6013,
+    "numeric confirmation disambiguates repeated exact titles for a weak show");
+  const duplicatedStrong = weakMatcher({ exact: {
+    "Nom français": Array.from({ length: 4 }, () => result("show", 601)),
+  } });
+  assert.equal((await duplicatedStrong.match(weakObservation("S1E3"))).item.traktId, 6013,
+    "duplicate exact strong aliases are removed before the three-show limit");
+  const tooManyStrong = weakMatcher({ exact: {
+    "Nom français": [601, 602, 603, 604].map((id) => result("show", id)),
+  } });
+  assert.equal((await tooManyStrong.match(weakObservation("S1E3 - Expected title"))).status, "ambiguous",
+    "more than three distinct strong candidates remains ambiguous");
+  const weakPrefix = weakMatcher({ ids: [], broad: {
+    "Nom français: Partie": [result("show", 601)],
+    "Nom français": [result("show", 601)],
+  } });
+  assert.equal((await weakPrefix.match(weakObservation("E3 - Expected title", {
+    artist: "Nom français: Partie",
+  }))).item.traktId, 6013, "weak results from existing full and prefix variants are deduplicated");
+
   const blacklistShows = [
     { type: "show", show: { title: "Blacklist", ids: { trakt: 209540 } } },
     { type: "show", show: { title: "The Blacklist", ids: { trakt: 46676 } } },
@@ -360,6 +453,686 @@ const result = (type, id, runtime = 100) => ({ type, [type]: { title: "Canonical
     }, pageTitle: "Crunchyroll",
   })).item.traktId, 304, "unique exact title safely wins when provider and Trakt episode numbers differ");
 
+  const errorWithStatus = (status) => Object.assign(new Error(`HTTP ${status}`), { status });
+  const entry = (id, title, number = 2, season = 2) => ({ season, number, title, ids: { trakt: id } });
+  function evidenceClient(overrides = {}) {
+    return {
+      async searchExact(type) { return type === "show" ? [result("show", 80)] : []; },
+      async searchShows() { return []; },
+      async episode() { return entry(900, "Other episode", 27, 1); },
+      async seasons() { return [{ number: 2, episodes: [entry(202, "Expected title")] }]; },
+      async seasonEpisodes() { return []; },
+      ...overrides,
+    };
+  }
+  const observed = (title = "S01E27 - Expected title", extra = {}) => ({
+    media: { title, artist: "Series", ...extra }, pageTitle: "",
+  });
+  for (const absentCoordinates of [false, true]) {
+    const matcher = createTraktMatcher(evidenceClient(absentCoordinates
+      ? { async episode() { throw errorWithStatus(404); } } : {}));
+    assert.equal((await matcher.match(observed())).item.traktId, 202,
+      "global exact title repairs missing or incorrect provider coordinates");
+  }
+  const repairedFrench = createTraktMatcher(evidenceClient({
+    async seasonEpisodes() { return [{ ...entry(202, "Expected title"),
+      translations: [{ language: "fr", title: "Titre attendu" }] }]; },
+  }));
+  assert.equal((await repairedFrench.match(observed("S01E27 - Titre attendu", { language: "fr" }))).item.traktId, 202);
+  for (const translations of [undefined, [], [{ language: "fr", title: null }], [{ language: "en", title: "Different" }]]) {
+    const matcher = createTraktMatcher(evidenceClient({
+      async seasonEpisodes() { return [{ ...entry(202, "Expected title"), translations }]; },
+    }));
+    assert.equal((await matcher.match(observed("S01E27 - Titre absent", { language: "fr" }))).item.traktId, 900,
+      "missing localized evidence never contradicts unique coordinates");
+  }
+  for (const endpoint of ["seasons", "seasonEpisodes"]) {
+    const matcher = createTraktMatcher(evidenceClient({ async [endpoint]() { throw errorWithStatus(404); } }));
+    assert.equal((await matcher.match(observed("S01E27 - Titre absent", { language: "fr" }))).item.traktId, 900);
+  }
+  const bare = createTraktMatcher(evidenceClient({
+    async seasons() { throw new Error("bare labels have no title evidence"); },
+  }));
+  assert.equal((await bare.match(observed("S01E27"))).item.traktId, 900);
+  assert.equal((await bare.match(observed("Series"))).status, "needsEpisode", "show hint is not an episode title");
+  const canonicalTranslationCollision = createTraktMatcher(evidenceClient({
+    async episode() { throw errorWithStatus(404); },
+    async seasons() { return [{ number: 2, episodes: [entry(201, "Home", 1), entry(202, "Other", 2)] }]; },
+    async seasonEpisodes() { return [{ ...entry(202, "Other"), translations: [{ language: "fr", title: "Home" }] }]; },
+  }));
+  assert.equal((await canonicalTranslationCollision.match(observed("Home", { language: "fr" }))).status, "ambiguous");
+  assert.equal((await canonicalTranslationCollision.match(observed("Home", { language: "fr", episodeNumber: 2 }))).item.traktId, 202);
+  for (const endpoint of ["episode", "seasons", "seasonEpisodes"]) {
+    for (const status of [401, 429, 500]) {
+      const matcher = createTraktMatcher(evidenceClient({ async [endpoint]() { throw errorWithStatus(status); } }));
+      await assert.rejects(matcher.match(observed(undefined, { language: "fr" })), (error) => error.status === status);
+    }
+  }
+  for (const boundary of ["episodes", "seasons", "total", "languages", "translated"]) {
+    let loads = 0;
+    const catalogue = boundary === "seasons"
+      ? Array.from({ length: 200 }, (_, number) => ({ number, episodes: number === 2 ? [entry(202, "Expected title")] : [] }))
+      : boundary === "total"
+        ? Array.from({ length: 10 }, (_, season) => ({ number: season, episodes: Array.from({ length: 500 }, (_, number) => entry(202 + season * 500 + number, number === 0 && season === 0 ? "Expected title" : "Other", number + 1, season)) }))
+        : boundary === "languages"
+          ? Array.from({ length: 51 }, (_, season) => ({ number: season, episodes: [entry(202 + season, season === 0 ? "Expected title" : "Other", 2, season)] }))
+          : [{ number: 2, episodes: boundary === "episodes"
+            ? Array.from({ length: 500 }, (_, number) => entry(202 + number, number === 0 ? "Expected title" : "Other", number + 1))
+            : [entry(202, "Expected title")] }];
+    const matcher = createTraktMatcher(evidenceClient({
+      async seasons() { loads++; return catalogue; },
+      async seasonEpisodes() { return boundary === "translated"
+        ? Array.from({ length: 500 }, (_, number) => entry(202 + number, number === 0 ? "Expected title" : "Other", number + 1))
+        : []; },
+    }));
+    const input = observed(undefined, { language: "fr" });
+    assert.equal((await matcher.match(input)).status, "ambiguous", `${boundary} boundary cannot prove uniqueness`);
+    assert.equal((await matcher.match(input)).status, "ambiguous");
+    assert.equal(loads, 1, "bounded catalogues remain shared and cached");
+    const confirmed = createTraktMatcher(evidenceClient({
+      async episode() { return entry(202, "Expected title", 27, 1); },
+      async seasons() { return catalogue; },
+      async seasonEpisodes() { return []; },
+    }));
+    assert.equal((await confirmed.match(input)).item.traktId, 202, "title-coordinate intersection survives truncation");
+  }
+  for (const endpoint of ["seasons", "seasonEpisodes"]) {
+    let attempts = 0;
+    const matcher = createTraktMatcher(evidenceClient({
+      async [endpoint]() {
+        if (++attempts === 1) throw errorWithStatus(429);
+        return endpoint === "seasons" ? [{ number: 2, episodes: [entry(202, "Expected title")] }] : [];
+      },
+    }));
+    const input = observed(undefined, { language: "fr" });
+    await assert.rejects(matcher.match(input), (error) => error.status === 429);
+    assert.equal((await matcher.match(input)).item.traktId, 202, "failed shared catalogue promise can reload");
+    assert.equal(attempts, 2);
+  }
+  const splitSeason = createTraktMatcher(evidenceClient({
+    async seasons() { return [{ number: 4, episodes: [entry(403, "Titre", 3, 4)] }]; },
+  }));
+  assert.equal((await splitSeason.match({ media: { title: "E3 - Titre", artist: "Series", album: "Season 2: Part 2" }, pageTitle: "" })).item.traktId, 403);
+  assert.equal((await splitSeason.match({ media: { title: "E3", artist: "Series", album: "Season 2: Part 2" }, pageTitle: "" })).status, "unmatched");
+  let sharedLoads = 0;
+  const shared = createTraktMatcher(evidenceClient({
+    async seasons() { sharedLoads++; await Promise.resolve(); return [{ number: 2, episodes: [entry(202, "Expected title")] }]; },
+  }));
+  const sharedResults = await Promise.all([shared.match(observed()), shared.match(observed())]);
+  assert.deepEqual(sharedResults.map((value) => value.item.traktId), [202, 202]);
+  assert.equal(sharedLoads, 1, "concurrent observations share the catalogue promise");
+  let boundedLoads = 0;
+  const boundedCache = createTraktMatcher(evidenceClient({
+    async searchExact(type, query) { return type === "show" ? [result("show", Number(query))] : []; },
+    async seasons() { boundedLoads++; return [{ number: 2, episodes: [entry(202, "Expected title")] }]; },
+  }));
+  for (let id = 1; id <= 21; id++) await boundedCache.match(observed(undefined, { artist: String(id) }));
+  await boundedCache.match(observed(undefined, { artist: "1" }));
+  assert.equal(boundedLoads, 22, "canonical cache evicts beyond twenty shows");
+  let translatedLoads = 0;
+  const boundedTranslations = createTraktMatcher(evidenceClient({
+    async seasonEpisodes() { translatedLoads++; return []; },
+  }));
+  const languages = Array.from({ length: 41 }, (_, index) => `${String.fromCharCode(97 + Math.floor(index / 26))}${String.fromCharCode(97 + index % 26)}`);
+  for (const language of languages) await boundedTranslations.match(observed(undefined, { language }));
+  await boundedTranslations.match(observed(undefined, { language: languages[0] }));
+  assert.equal(translatedLoads, 42, "translation cache evicts beyond forty show-language pairs");
+  const originalTitle = createTraktMatcher(evidenceClient({
+    async seasons() { return [{ number: 2, episodes: [{ ...entry(202, "Canonical"), original_title: "Expected title" }] }]; },
+  }));
+  assert.equal((await originalTitle.match(observed())).item.traktId, 202, "original titles provide exact evidence");
+  const translatedTotal = createTraktMatcher(evidenceClient({
+    async seasons() { return Array.from({ length: 11 }, (_, season) => ({ number: season, episodes: [entry(1000 + season, "Other", 1, season)] })); },
+    async seasonEpisodes(_show, season) {
+      return Array.from({ length: 499 }, (_, number) => entry(202 + season * 499 + number,
+        season === 0 && number === 0 ? "Expected title" : "Other", number + 1, season));
+    },
+  }));
+  assert.equal((await translatedTotal.match(observed(undefined, { language: "fr" }))).status, "ambiguous",
+    "five-thousand translated episodes cannot prove a global correction");
+  const truncatedAbsent = createTraktMatcher(evidenceClient({
+    async seasons() { return [{ number: 2, episodes: Array.from({ length: 500 }, (_, index) => entry(2000 + index, "Other", index + 1)) }]; },
+  }));
+  assert.equal((await truncatedAbsent.match(observed())).item.traktId, 900,
+    "empty incomplete title evidence still preserves unique coordinates");
+  for (const original of [false, true]) {
+    const directConfirmed = createTraktMatcher(evidenceClient({
+      async episode() {
+        return { ...entry(900, original ? "Canonical title" : "Expected title", 27, 1),
+          ...(original ? { original_title: "Expected title" } : {}) };
+      },
+      async seasons() {
+        return [{ number: 2, episodes: Array.from({ length: 500 }, (_, index) =>
+          entry(202 + index, index === 0 ? "Expected title" : "Other", index + 1)) }];
+      },
+    }));
+    assert.equal((await directConfirmed.match(observed())).item.traktId, 900,
+      "direct canonical or original title confirms coordinates omitted from a truncated catalogue");
+  }
+  const multipleDirectCandidates = createTraktMatcher(evidenceClient({
+    async searchExact(type) {
+      return type === "show" ? [result("show", 80), result("show", 81)] : [];
+    },
+    async episode(showId) {
+      return entry(showId === 80 ? 900 : 901, showId === 80 ? "Expected title" : "Other episode", 27, 1);
+    },
+    async seasons() { throw errorWithStatus(404); },
+  }));
+  assert.equal((await multipleDirectCandidates.match(observed())).item.traktId, 900,
+    "direct title evidence selects the uniquely confirmed coordinate candidate despite missing catalogues");
+
+  function allLanguageClient(overrides = {}) {
+    const calls = [];
+    const guardian = { ...entry(2003, "Black Guardian", 3, 2), number_abs: 173 };
+    const pilot = entry(1001, "Pilot", 1, 1);
+    const api = {
+      async searchExact(type) {
+        return type === "show" ? [{ type: "show", show: { title: "Black Clover", ids: { trakt: 121959 } } }] : [];
+      },
+      async searchShows() { return []; },
+      async episode() { throw errorWithStatus(404); },
+      async seasons() {
+        return [{ number: 1, episodes: [pilot] }, { number: 2, episodes: [guardian] }];
+      },
+      async seasonEpisodes(_showId, season, language) {
+        return season === 2 ? [{
+          ...guardian,
+          translations: language === "all" ? [
+            { language: "fr", country: "fr", title: "Le gardien noir", overview: "Not matching evidence" },
+            { language: "fr", country: "ca", title: "Le gardien noir" },
+            { language: "de", title: null },
+          ] : [],
+        }] : [pilot];
+      },
+      ...overrides,
+    };
+    const loadSeason = api.seasonEpisodes;
+    api.seasonEpisodes = async (showId, season, language) => {
+      calls.push({ showId, season, language });
+      return loadSeason(showId, season, language);
+    };
+    return { api, calls };
+  }
+  const cloverObservation = (language = "en", pageTitle = "", extra = {}) => ({
+    media: { title: "E173-Le gardien noir", artist: "Black Clover", language, ...extra }, pageTitle,
+  });
+  for (const language of ["en", null]) {
+    for (const pageTitle of ["", "Black Clover Saison 2"]) {
+      const { api, calls } = allLanguageClient();
+      const matcher = createTraktMatcher(api);
+      assert.equal((await matcher.match(cloverObservation(language, pageTitle))).item.traktId, 2003,
+        "all-language exact title repairs a wrong page season without converting E173 to seasonal coordinates");
+      assert.deepEqual(calls.filter((call) => call.language === "all").map((call) => call.season), [1, 2],
+        "all languages load once per known season, even without available_translations hints");
+      assert.ok(calls.every((call) => call.language === "all" || call.language === language),
+        "translation fallback never loops through individual languages");
+    }
+  }
+  for (const translations of [undefined, [], [{ language: "fr", title: null }], [{ language: "fr", title: "Different", overview: "Le gardien noir" }]]) {
+    const { api } = allLanguageClient({
+      async seasonEpisodes() { return [{ ...entry(2003, "Black Guardian", 3), number_abs: 173, translations }]; },
+    });
+    assert.equal((await createTraktMatcher(api).match(cloverObservation())).item.traktId, 2003,
+      "absent all-language title evidence permits the final unique canonical absolute-number fallback");
+  }
+  const cloverDuplicates = allLanguageClient({
+    async seasonEpisodes(_showId, season, language) {
+      if (language !== "all" || season !== 2) return [];
+      return [3, 4].map((number) => ({
+        ...entry(2000 + number, "Different", number), number_abs: 173,
+        translations: [{ language: "fr", title: "Le gardien noir" }],
+      }));
+    },
+  });
+  assert.equal((await createTraktMatcher(cloverDuplicates.api).match(cloverObservation())).status, "ambiguous",
+    "same translated title and absolute number on different episode IDs remains ambiguous");
+  const numberedTranslations = allLanguageClient({
+    async seasonEpisodes(_showId, season, language) {
+      return language === "all" && season === 2 ? [3, 4].map((number) => ({
+        ...entry(2000 + number, "Different", number), number_abs: 170 + number,
+        translations: [{ language: "fr", title: "Le gardien noir" }],
+      })) : [];
+    },
+  });
+  assert.equal((await createTraktMatcher(numberedTranslations.api).match(cloverObservation())).item.traktId, 2003,
+    "numeric evidence disambiguates repeated all-language titles");
+  for (const [title, episodeNumber, expected] of [
+    ["E173-Le gardien noir", undefined, "matched"],
+    ["Le gardien noir", 3, "matched"],
+    ["Le gardien noir", undefined, "unmatched"],
+    ["Le gardien noir", 173, "unmatched"],
+    ["E174-Le gardien noir", undefined, "unmatched"],
+  ]) {
+    const { api } = allLanguageClient({
+      async searchExact() { return []; },
+      async searchShows() { return [result("show", 121959)]; },
+    });
+    assert.equal((await createTraktMatcher(api).match(cloverObservation("en", "", {
+      title, episodeNumber, artist: "Nom localisé",
+    }))).status, expected, "weak all-language matching still requires exact title and the correct numeric kind");
+  }
+  const ambiguousWeakAll = allLanguageClient({
+    async searchExact() { return []; },
+    async searchShows() { return [result("show", 121959), result("show", 80)]; },
+    async seasons(showId) { return [{ number: 2, episodes: [entry(showId + 2000, "Canonical", 3)] }]; },
+    async seasonEpisodes(showId, _season, language) {
+      return language === "all" ? [{ ...entry(showId + 2000, "Canonical", 3), number_abs: 173,
+        translations: [{ language: "fr", title: "Le gardien noir" }] }] : [];
+    },
+  });
+  assert.equal((await createTraktMatcher(ambiguousWeakAll.api).match(cloverObservation())).status, "ambiguous",
+    "multiple weak episodes corroborated by all-language title and number remain ambiguous");
+  const noFallbackCases = [
+    ["unique coordinates", cloverObservation("en", "Black Clover Saison 2"), {
+      async episode() { return entry(900, "Other episode", 173); },
+    }, "matched"],
+    ["canonical title", cloverObservation("en", "", { title: "E173-Black Guardian" }), {}, "matched"],
+    ["requested-language title", cloverObservation("fr"), {
+      async seasonEpisodes(_showId, season) {
+        return season === 2 ? [{ ...entry(2003, "Black Guardian", 3), number_abs: 173,
+          translations: [{ language: "fr", title: "Le gardien noir" }] }] : [];
+      },
+    }, "matched"],
+    ["normal title ambiguity", cloverObservation("en", "", { title: "Home" }), {
+      async seasons() { return [{ number: 2, episodes: [entry(2003, "Home", 3), entry(2004, "Home", 4)] }]; },
+    }, "ambiguous"],
+    ["coordinate ambiguity", cloverObservation("en", "Black Clover Saison 2"), {
+      async searchExact() { return [result("show", 1), result("show", 2)]; },
+      async episode(showId) { return entry(900 + showId, "Other episode", 173); },
+    }, "ambiguous"],
+    ["unresolved show ambiguity", cloverObservation("en"), {
+      async searchExact() { return [result("show", 1), result("show", 2)]; },
+    }, "ambiguous"],
+    ["bare label", cloverObservation("en", "", { title: "E173" }), {}, "matched"],
+    ["show title is not episode title", cloverObservation("en", "", { title: "Black Clover" }), {}, "needsEpisode"],
+    ["no show candidates", cloverObservation("en"), {
+      async searchExact() { return []; },
+    }, "unmatched"],
+    ["missing canonical catalogue", cloverObservation("en"), {
+      async seasons() { throw errorWithStatus(404); },
+    }, "unmatched"],
+    ["too many shows", cloverObservation("en"), {
+      async searchExact() { return [1, 2, 3, 4].map((id) => result("show", id)); },
+    }, "ambiguous"],
+  ];
+  for (const [name, input, overrides, expected] of noFallbackCases) {
+    const { api, calls } = allLanguageClient(overrides);
+    assert.equal((await createTraktMatcher(api).match(input)).status, expected, name);
+    assert.ok(!calls.some((call) => call.language === "all"), `${name} does not trigger multilingual fallback`);
+  }
+  const preferredAllTier = allLanguageClient({
+    async searchExact(_type, query) { return query === "Known Show" ? [result("show", 80)] : []; },
+    async searchShows() { return [result("show", 121959)]; },
+    async seasons(showId) { return [{ number: 2, episodes: [entry(showId === 80 ? 8003 : 2003, "Other", 3)] }]; },
+    async seasonEpisodes(showId, _season, language) {
+      return showId === 121959 && language === "all" ? [{
+        ...entry(2003, "Other", 3), number_abs: 173,
+        translations: [{ language: "fr", title: "Le gardien noir" }],
+      }] : [];
+    },
+  });
+  assert.equal((await createTraktMatcher(preferredAllTier.api)
+    .match(cloverObservation("en", "", { album: "Known Show", artist: "Nom français" }))).status, "unmatched");
+  assert.ok(preferredAllTier.calls.every((call) => call.showId === 80),
+    "all-language fallback never mixes weak shows into the selected strong tier");
+  let cloverSeasonLoads = 0;
+  const cachedAll = allLanguageClient({
+    async seasons() {
+      cloverSeasonLoads++;
+      await Promise.resolve();
+      return [{ number: 2, episodes: [{ ...entry(2003, "Black Guardian", 3), number_abs: 173 }] }];
+    },
+  });
+  const cachedAllMatcher = createTraktMatcher(cachedAll.api);
+  const concurrentAll = await Promise.all([
+    cachedAllMatcher.match(cloverObservation()), cachedAllMatcher.match(cloverObservation()),
+  ]);
+  assert.deepEqual(concurrentAll.map((value) => value.item.traktId), [2003, 2003]);
+  assert.equal((await cachedAllMatcher.match(cloverObservation(null))).item.traktId, 2003);
+  assert.equal(cloverSeasonLoads, 1);
+  assert.equal(cachedAll.calls.filter((call) => call.language === "all").length, 1,
+    "concurrent and different-language observations share one show:all promise");
+  for (const status of [401, 429, 500, null]) {
+    let allAttempts = 0;
+    const failure = status === null ? new Error("Network unavailable") : errorWithStatus(status);
+    const { api } = allLanguageClient({
+      async seasons() { return [{ number: 2, episodes: [entry(2003, "Black Guardian", 3)] }]; },
+      async seasonEpisodes(_showId, _season, language) {
+        if (language !== "all") return [];
+        if (++allAttempts === 1) throw failure;
+        return [{ ...entry(2003, "Black Guardian", 3), number_abs: 173,
+          translations: [{ language: "fr", title: "Le gardien noir" }] }];
+      },
+    });
+    const matcher = createTraktMatcher(api);
+    await assert.rejects(matcher.match(cloverObservation()), (error) => error === failure,
+      "all-language non-404 errors propagate unchanged");
+    assert.equal((await matcher.match(cloverObservation())).item.traktId, 2003);
+    assert.equal(allAttempts, 2, "failed all-language promise is evicted for a later observation");
+  }
+  const missingAll = allLanguageClient({
+    async seasonEpisodes(_showId, _season, language) {
+      if (language === "all") throw errorWithStatus(404);
+      return [];
+    },
+  });
+  assert.equal((await createTraktMatcher(missingAll.api).match(cloverObservation())).item.traktId, 2003,
+    "404 from all translations leaves a complete canonical absolute-number match usable");
+  const recoveredLanguage404 = allLanguageClient({
+    async seasonEpisodes(_showId, season, language) {
+      if (language !== "all") throw errorWithStatus(404);
+      return season === 2 ? [{ ...entry(2003, "Black Guardian", 3), number_abs: 173,
+        translations: [{ language: "fr", title: "Le gardien noir" }] }] : [];
+    },
+  });
+  assert.equal((await createTraktMatcher(recoveredLanguage404.api).match(cloverObservation("fr"))).item.traktId, 2003,
+    "complete all-language evidence can resolve an absent requested-language catalogue");
+  const partialAll404 = allLanguageClient({
+    async seasonEpisodes(_showId, season, language) {
+      if (language !== "all") return [];
+      if (season === 1) throw errorWithStatus(404);
+      return [{ ...entry(2003, "Black Guardian", 3), number_abs: 173,
+        translations: [{ language: "fr", title: "Le gardien noir" }] }];
+    },
+  });
+  assert.equal((await createTraktMatcher(partialAll404.api).match(cloverObservation())).status, "ambiguous",
+    "a missing season prevents global uniqueness of an all-language title");
+  const partialAllConfirmed = allLanguageClient({
+    async searchExact() { return []; },
+    async searchShows() { return [result("show", 121959)]; },
+    async episode() { return entry(2003, "Black Guardian", 173); },
+    async seasonEpisodes(_showId, season, language) {
+      if (language !== "all") return [];
+      if (season === 1) throw errorWithStatus(404);
+      return [{ ...entry(2003, "Black Guardian", 3), number_abs: 173,
+        translations: [{ language: "fr", title: "Le gardien noir" }] }];
+    },
+  });
+  assert.equal((await createTraktMatcher(partialAllConfirmed.api)
+    .match(cloverObservation("en", "Black Clover Saison 2"))).item.traktId, 2003,
+    "exact all-language title plus coordinates confirms a weak episode despite a missing season");
+  for (const boundary of ["canonical seasons", "canonical episodes", "canonical total", "all seasons", "all episodes", "all total"]) {
+    const manySeasons = boundary === "canonical seasons" ? 200 : boundary === "canonical total" ? 10
+      : boundary === "all seasons" ? 51 : boundary === "all total" ? 11 : 1;
+    const { api, calls } = allLanguageClient({
+      async seasons() {
+        return Array.from({ length: manySeasons }, (_, index) => ({
+          number: index + 1,
+          episodes: Array.from({ length: ["canonical episodes", "canonical total"].includes(boundary) ? 500 : 1 }, (_, number) =>
+            entry(10000 + index * 500 + number, "Canonical", number + 1, index + 1)),
+        }));
+      },
+      async seasonEpisodes(_showId, season, language) {
+        if (language !== "all") return [];
+        const count = boundary === "all episodes" ? 500 : boundary === "all total" ? 499 : 1;
+        return Array.from({ length: count }, (_, index) => ({
+          ...entry(10000 + season * 500 + index, "Canonical", index + 1, season),
+          number_abs: season === 1 && index === 0 ? 173 : null,
+          translations: [{ language: "fr", title: season === 1 && index === 0 ? "Le gardien noir" : "Other" }],
+        }));
+      },
+    });
+    const matcher = createTraktMatcher(api);
+    assert.equal((await matcher.match(cloverObservation())).status, "ambiguous",
+      `${boundary} cannot prove unique all-language title evidence`);
+    const allLoads = calls.filter((call) => call.language === "all").length;
+    assert.ok(allLoads <= 50);
+    assert.equal((await matcher.match(cloverObservation())).status, "ambiguous");
+    assert.equal(calls.filter((call) => call.language === "all").length, allLoads,
+      "incomplete all-language catalogues still reuse bounded memory cache");
+  }
+  let allEvictionLoads = 0;
+  const allEviction = allLanguageClient({
+    async seasons() { return [{ number: 2, episodes: [entry(2003, "Black Guardian", 3)] }]; },
+    async seasonEpisodes(_showId, _season, language) {
+      if (language === "all") allEvictionLoads++;
+      return [{ ...entry(2003, "Black Guardian", 3), number_abs: 173,
+        translations: language === "all" ? [{ language: "fr", title: "Le gardien noir" }] : [] }];
+    },
+  });
+  const allEvictionMatcher = createTraktMatcher(allEviction.api);
+  assert.equal((await allEvictionMatcher.match(cloverObservation())).item.traktId, 2003);
+  for (const language of languages) {
+    await allEvictionMatcher.match(cloverObservation(language, "", { title: "Black Guardian" }));
+  }
+  assert.equal((await allEvictionMatcher.match(cloverObservation(null))).item.traktId, 2003);
+  assert.equal(allEvictionLoads, 2, "show:all uses the same bounded forty-entry translation cache");
+
+  const blackGuardian = {
+    season: 2, number: 3, number_abs: 173, title: "Black Guardian", original_title: "黒き守護者",
+    available_translations: ["de", "en", "ja", "ko", "pt"], ids: { trakt: 14546332 },
+  };
+  const blackCloverSeasons = [{ number: 2, episodes: [blackGuardian] }];
+  function absoluteFallbackClient(overrides = {}) {
+    return {
+      async searchExact(type) {
+        return type === "show" ? [{ type: "show", show: { title: "Black Clover", ids: { trakt: 121959 } } }] : [];
+      },
+      async searchShows() { return []; },
+      async episode() { throw errorWithStatus(404); },
+      async seasons() { return blackCloverSeasons; },
+      async seasonEpisodes() {
+        return [{ ...blackGuardian, translations: [
+          { language: "en", title: "Black Guardian" }, { language: "ja", title: "黒き守護者" },
+        ] }];
+      },
+      ...overrides,
+    };
+  }
+  const absoluteObservation = (title = "E173 - Le gardien noir", pageTitle = "", extra = {}) => ({
+    media: { title, artist: "Black Clover", language: "fr", ...extra }, pageTitle,
+  });
+  for (const title of ["E173 - Le gardien noir", "E173"]) {
+    for (const pageTitle of ["", "Black Clover Saison 2"]) {
+      const matcher = createTraktMatcher(absoluteFallbackClient());
+      assert.deepEqual(await matcher.match(absoluteObservation(title, pageTitle)), {
+        status: "matched", key: "episode:14546332", item: { type: "episode", traktId: 14546332 },
+      }, "reported Black Clover episode resolves explicit number_abs despite missing French and a separate season hint");
+    }
+  }
+  assert.equal((await createTraktMatcher(absoluteFallbackClient())
+    .match(absoluteObservation(undefined, "", { album: "Saison 2" }))).item.traktId, 14546332,
+  "a separate ordinary album season hint does not reinterpret the source E-only label");
+  assert.equal((await createTraktMatcher(absoluteFallbackClient())
+    .match(absoluteObservation(undefined, "", { episodeNumber: 3 }))).item.traktId, 14546332,
+  "within-season provider hint 3 does not contradict source E173 absolute numbering for S2E3");
+  for (const language of ["fr", "all"]) {
+    const matcher = createTraktMatcher(absoluteFallbackClient({
+      async seasons() { return [{ number: 2, episodes: [{ ...blackGuardian, number_abs: undefined }] }]; },
+      async seasonEpisodes(_showId, _season, code) { return code === language ? [blackGuardian] : []; },
+    }));
+    assert.equal((await matcher.match(absoluteObservation(undefined, "Black Clover Saison 2"))).item.traktId, 14546332,
+      `complete ${language} catalogue can supply explicit number_abs omitted by complete nested canonical entries`);
+  }
+  const bareWithoutAbsolute = createTraktMatcher(absoluteFallbackClient({
+    async seasons() { return [{ number: 2, episodes: [{ ...blackGuardian, number_abs: undefined }] }]; },
+    async seasonEpisodes() { throw new Error("bare labels must not fetch translations for absolute numbers"); },
+  }));
+  assert.equal((await bareWithoutAbsolute.match(absoluteObservation("E173"))).status, "unmatched",
+    "bare label fallback does not start a new translated catalogue request");
+  for (const language of ["fr", "all"]) {
+    const matcher = createTraktMatcher(absoluteFallbackClient({
+      async seasons() { return [{ number: 2, episodes: [{ ...blackGuardian, number_abs: undefined }] }]; },
+      async seasonEpisodes(_showId, _season, code) {
+        return code === language ? Array.from({ length: 500 }, (_, index) =>
+          index === 0 ? blackGuardian : entry(100000 + index, "Other", index + 1)) : [];
+      },
+    }));
+    assert.equal((await matcher.match(absoluteObservation())).status, "ambiguous",
+      `incomplete ${language} catalogue cannot prove a numeric ID when canonical entries omit number_abs`);
+  }
+  const translatedAbsoluteConflict = createTraktMatcher(absoluteFallbackClient({
+    async seasonEpisodes() { return [{ ...blackGuardian, ids: { trakt: 14546333 } }]; },
+  }));
+  assert.equal((await translatedAbsoluteConflict.match(absoluteObservation())).status, "ambiguous",
+    "different absolute-number IDs across canonical and translated catalogues remain ambiguous");
+  const partialTranslatedConflict = createTraktMatcher(absoluteFallbackClient({
+    async seasonEpisodes() {
+      return Array.from({ length: 500 }, (_, index) => index === 0
+        ? { ...blackGuardian, ids: { trakt: 14546333 } } : entry(100000 + index, "Other", index + 1));
+    },
+  }));
+  assert.equal((await partialTranslatedConflict.match(absoluteObservation())).status, "ambiguous",
+    "even incomplete translated evidence cannot hide a conflicting absolute-number ID");
+  const partialCanonicalNumber = createTraktMatcher(absoluteFallbackClient({
+    async seasons() {
+      return [{ number: 2, episodes: Array.from({ length: 500 }, (_, index) =>
+        index === 0 ? { ...blackGuardian, number_abs: undefined } : entry(100000 + index, "Other", index + 1)) }];
+    },
+  }));
+  assert.equal((await partialCanonicalNumber.match(absoluteObservation())).status, "ambiguous",
+    "complete translated numeric evidence never repairs an incomplete canonical catalogue");
+  const coordinatePriority = createTraktMatcher(absoluteFallbackClient({
+    async episode() { return entry(900, "Other episode", 173); },
+  }));
+  assert.equal((await coordinatePriority.match(absoluteObservation(undefined, "Black Clover Saison 2"))).item.traktId, 900,
+    "already accepted unique ordinary coordinates take priority over a different absolute-number ID");
+  for (const titleSource of ["canonical", "requested", "all"]) {
+    const otherEpisode = { ...entry(14546333, "Different", 4), number_abs: 174 };
+    const matcher = createTraktMatcher(absoluteFallbackClient({
+      async seasons() {
+        return [{ number: 2, episodes: [blackGuardian, {
+          ...otherEpisode, title: titleSource === "canonical" ? "Le gardien noir" : "Different",
+        }] }];
+      },
+      async seasonEpisodes(_showId, _season, language) {
+        return [{ ...otherEpisode, translations:
+          titleSource === "requested" && language === "fr" || titleSource === "all" && language === "all"
+            ? [{ language: "fr", title: "Le gardien noir" }] : [] }];
+      },
+    }));
+    assert.equal((await matcher.match(absoluteObservation())).item.traktId, 14546333,
+      `${titleSource} exact title on another ID wins over the explicit absolute-number candidate`);
+  }
+  const conflictingTitle = createTraktMatcher(absoluteFallbackClient({
+    async seasons() { return [{ number: 2, episodes: [
+      blackGuardian,
+      { ...entry(14546333, "Le gardien noir", 4), number_abs: 174 },
+      { ...entry(14546334, "Le gardien noir", 5), number_abs: 175 },
+    ] }]; },
+  }));
+  assert.equal((await conflictingTitle.match(absoluteObservation())).status, "ambiguous",
+    "known exact-title ambiguity is not overridden by an unrelated unique absolute-number candidate");
+  for (const [title, pageTitle, extra] of [
+    ["S2E173 - Le gardien noir", "", {}],
+    ["E173 - Le gardien noir", "S2E173", {}],
+    ["E173 - Le gardien noir", "", { album: "S2E173" }],
+    ["E173 - Le gardien noir", "", { artist: "Black Clover S2E173" }],
+    ["E173 - Le gardien noir", "Saison 2 Episode 173", {}],
+    ["E173 - Le gardien noir", "Season 2", { album: "Season 3" }],
+    ["E173 - Le gardien noir", "Episode 174", {}],
+    ["E173 - Le gardien noir", "S2E174", {}],
+    ["E173 - Le gardien noir", "S2E173 S3E173", {}],
+    ["E173 E174 - Le gardien noir", "", {}],
+    ["Le gardien noir", "", { episodeNumber: 173 }],
+    ["Le gardien noir", "Episode 173", {}],
+    ["Black Clover", "", { episodeNumber: 173 }],
+    [null, "", { episodeNumber: 173 }],
+  ]) {
+    assert.notEqual((await createTraktMatcher(absoluteFallbackClient())
+      .match(absoluteObservation(title, pageTitle, extra))).status, "matched",
+    "complete coordinates, conflicting metadata, and absent source E-only labels never enter the absolute fallback");
+  }
+  const noAbsoluteShow = createTraktMatcher(absoluteFallbackClient({
+    async searchExact() { return []; },
+  }));
+  assert.equal((await noAbsoluteShow.match(absoluteObservation())).status, "unmatched",
+    "an E-only label cannot invent a show candidate");
+  for (const weak of [false, true]) {
+    const matcher = createTraktMatcher(absoluteFallbackClient({
+      async searchExact() { return weak ? [] : [result("show", 121959), result("show", 121960)]; },
+      async searchShows() { return weak ? [result("show", 121959)] : []; },
+    }));
+    assert.equal((await matcher.match(absoluteObservation())).status, weak ? "unmatched" : "ambiguous",
+      "absolute-number-only fallback never resolves weak or multiple strong shows");
+  }
+  const duplicateAbsoluteIds = createTraktMatcher(absoluteFallbackClient({
+    async seasons() { return [{ number: 2, episodes: [
+      blackGuardian, { ...blackGuardian, ids: { trakt: 14546333 } },
+    ] }]; },
+  }));
+  assert.equal((await duplicateAbsoluteIds.match(absoluteObservation())).status, "ambiguous",
+    "different IDs sharing number_abs remain ambiguous without any title evidence");
+  const duplicateAbsoluteEntries = createTraktMatcher(absoluteFallbackClient({
+    async seasons() { return [
+      { number: 2, episodes: [blackGuardian, blackGuardian] },
+      { number: 2, episodes: [blackGuardian] },
+    ]; },
+  }));
+  assert.equal((await duplicateAbsoluteEntries.match(absoluteObservation())).item.traktId, 14546332,
+    "repeated entries for the same absolute episode ID do not create false ambiguity");
+  for (const boundary of ["episodes", "seasons", "total"]) {
+    const seasonCount = boundary === "seasons" ? 200 : boundary === "total" ? 10 : 1;
+    const episodeCount = boundary === "seasons" ? 1 : 500;
+    for (const hasAbsolute of [false, true]) {
+      const matcher = createTraktMatcher(absoluteFallbackClient({
+        async seasons() {
+          return Array.from({ length: seasonCount }, (_, season) => ({
+            number: season,
+            episodes: Array.from({ length: episodeCount }, (_, number) =>
+              season === 0 && number === 0 && hasAbsolute ? blackGuardian
+                : entry(100000 + season * 500 + number, "Other", number + 1, season)),
+          }));
+        },
+        async seasonEpisodes() { return []; },
+      }));
+      assert.equal((await matcher.match(absoluteObservation())).status, hasAbsolute ? "ambiguous" : "unmatched",
+        `${boundary} canonical limit cannot prove absolute uniqueness; translated completeness never repairs it`);
+    }
+  }
+  for (const numberAbs of [undefined, null, 0, "173", 174]) {
+    const matcher = createTraktMatcher(absoluteFallbackClient({
+      async seasons() { return [{ number: 2, episodes: [
+        { ...entry(14546330, "Other", 170, 1) },
+        { ...blackGuardian, number: 173, number_abs: numberAbs },
+      ] }]; },
+      async seasonEpisodes() { return []; },
+    }));
+    assert.equal((await matcher.match(absoluteObservation())).status, "unmatched",
+      "only an explicit equal integer number_abs qualifies, never a seasonal number or arithmetic conversion");
+  }
+  let absoluteSeasonLoads = 0;
+  const absoluteTranslationLoads = [];
+  const cachedNumberOnly = createTraktMatcher(absoluteFallbackClient({
+    async seasons() {
+      absoluteSeasonLoads++;
+      await Promise.resolve();
+      return blackCloverSeasons;
+    },
+    async seasonEpisodes(_showId, _season, language) {
+      absoluteTranslationLoads.push(language);
+      await Promise.resolve();
+      return [];
+    },
+  }));
+  assert.deepEqual((await Promise.all([
+    cachedNumberOnly.match(absoluteObservation()), cachedNumberOnly.match(absoluteObservation()),
+  ])).map((value) => value.item.traktId), [14546332, 14546332]);
+  assert.equal((await cachedNumberOnly.match(absoluteObservation("E173"))).item.traktId, 14546332);
+  assert.equal(absoluteSeasonLoads, 1, "numeric fallback reuses the shared canonical promise, including bare labels");
+  assert.deepEqual(absoluteTranslationLoads, ["fr", "all"],
+    "numeric fallback runs after requested/all title searches without duplicating their cached requests");
+  for (const endpoint of ["seasons", "fr", "all"]) {
+    for (const status of [401, 429, 500, null]) {
+      let attempts = 0;
+      const failure = status === null ? new Error("Network unavailable") : errorWithStatus(status);
+      const matcher = createTraktMatcher(absoluteFallbackClient({
+        async seasons() {
+          if (endpoint === "seasons" && ++attempts === 1) throw failure;
+          return blackCloverSeasons;
+        },
+        async seasonEpisodes(_showId, _season, language) {
+          if (language === endpoint && ++attempts === 1) throw failure;
+          return [];
+        },
+      }));
+      await assert.rejects(matcher.match(absoluteObservation()), (error) => error === failure,
+        "a numeric candidate never suppresses canonical or translation API errors");
+      assert.equal((await matcher.match(absoluteObservation())).item.traktId, 14546332,
+        "failed catalogue promises are evicted so the next observation can retry the numeric fallback");
+      assert.equal(attempts, 2);
+    }
+  }
   const missingEpisode = createTraktMatcher(client({ "show:Series": [result("show", 20)], "movie:Chapter": [result("movie", 30)] }));
   assert.equal((await missingEpisode.match({ media: { title: "Chapter", artist: "Series", album: null }, pageTitle: "" })).status, "needsEpisode", "show-like media is not misclassified as movie");
   console.log("Trakt matcher checks: OK");

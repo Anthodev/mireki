@@ -27,6 +27,18 @@ const client = createTraktClient({ clientId: "public", getAccessToken: async () 
   assert.equal((await client.seasonEpisodes(20, 1, "FR"))[0].number, 1);
   assert.match(requests.at(-1).url, /\/shows\/20\/seasons\/1\?extended=full&translations=fr$/);
   await assert.rejects(() => client.seasonEpisodes(20, 1, "fr-FR"), /Invalid translated season identity/);
+  assert.equal((await client.seasonEpisodes(20, 0, "all"))[0].number, 1);
+  assert.match(requests.at(-1).url, /\/shows\/20\/seasons\/0\?extended=full&translations=all$/);
+  const beforeInvalidTranslations = requests.length;
+  for (const language of ["ALL", " all", "all ", "", "fra", "fr,en", "all&extended=full", null, 42]) {
+    await assert.rejects(() => client.seasonEpisodes(20, 1, language), /Invalid translated season identity/);
+  }
+  for (const [showId, season] of [[0, 1], [-1, 1], ["20", 1], [20, -1], [20, 1.5], [20, "1"]]) {
+    await assert.rejects(() => client.seasonEpisodes(showId, season, "all"), /Invalid translated season identity/);
+  }
+  assert.equal(requests.length, beforeInvalidTranslations, "invalid translation inputs never issue a request");
+  response = { ok: true, status: 200, headers: { get: () => null }, json: async () => Array.from({ length: 501 }, (_, number) => ({ number })) };
+  assert.equal((await client.seasonEpisodes(20, 1, "all")).length, 500, "all-language responses keep the episode bound");
   response = { ok: true, status: 200, headers: { get: () => null }, json: async () => ({ season: 1, number: 3, ids: { trakt: 99 } }) };
   assert.equal((await client.episode(20, 1, 3)).ids.trakt, 99);
   response = { ok: true, status: 200, headers: { get: () => null }, json: async () => ({ season: 2, number: 3, ids: { trakt: 99 } }) };

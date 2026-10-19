@@ -28,6 +28,8 @@ jobs:
         run: find auth background config content options playback popup providers services shared trakt -name '*.js' -print0 | xargs -0 -n1 node --check
       - name: Check build script syntax
         run: node --check tools/build-extension.cjs
+      - name: Check release notes script syntax
+        run: node --check tools/release-notes.cjs
 
 
       - name: Check manifest assets

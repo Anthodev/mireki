@@ -14,6 +14,11 @@
   const text = (value) => typeof value === "string" && value.trim()
     ? value.trim().replace(/\s+/g, " ").slice(0, 300) : null;
   const unique = (values) => [...new Set(values.filter(Boolean))];
+  const contentText = (value) => {
+    const candidate = text(value)?.replace(/^[\s:;,.\-–—|]+|[\s:;,.\-–—|]+$/gu, "");
+    return candidate && !MirekiEpisodeLabel.isSeasonOrPartLabel(candidate)
+      && MirekiEpisodeLabel.stripEpisodePrefix(candidate) !== null ? candidate : null;
+  };
 
   function watchId(pageUrl) {
     try {
@@ -41,13 +46,30 @@
   }
 
   function parseTitleScope(element) {
-    const parts = textParts(element);
+    const rawParts = textParts(element);
+    const parts = [];
+    for (let index = 0; index < rawParts.length; index++) {
+      const value = rawParts[index];
+      const next = rawParts[index + 1];
+      if (MirekiEpisodeLabel.isSeasonOrPartLabel(value) && MirekiEpisodeLabel.isSeasonOrPartLabel(next)
+        && MirekiEpisodeLabel.isSeasonOrPartLabel(`${value} ${next}`)) {
+        parts.push(`${value} ${next}`);
+        index++;
+      } else parts.push(value);
+    }
     if (!parts.length) return null;
-    const heading = text(element.querySelector?.(HEADING_SELECTOR)?.textContent);
+    const heading = contentText(element.querySelector?.(HEADING_SELECTOR)?.textContent);
     const scopeValues = parts.flatMap((value, index) => index + 1 < parts.length
       ? [value, `${value} ${parts[index + 1]}`] : [value]);
     const scopeCoordinates = MirekiEpisodeLabel.parseEpisode(scopeValues);
     const scopeEpisodeNumber = MirekiEpisodeLabel.parseAbsoluteEpisode(scopeValues);
+    if (!scopeCoordinates && !scopeEpisodeNumber) {
+      // Seeding a missing episode resolves absent signals (with at most one
+      // season), but cannot resolve contradictory season or episode signals.
+      const seededValues = [...scopeValues, "E1"];
+      if (!MirekiEpisodeLabel.parseEpisode(seededValues)
+        && !MirekiEpisodeLabel.parseAbsoluteEpisode(seededValues)) return { conflict: true };
+    }
     let coordinate;
     let coordinateIndex = -1;
     let consumed = 1;
@@ -67,12 +89,13 @@
         || match.episode !== scopeCoordinates.episode) return { conflict: true };
       coordinate = `S${match.season}E${match.episode}`;
       coordinateIndex = index;
-      prefix = text(value.slice(0, match.index));
-      suffix = text(value.slice(match.index + match.length));
+      prefix = contentText(value.slice(0, match.index));
+      suffix = contentText(value.slice(match.index + match.length));
       break;
     }
 
     if (!coordinate) {
+      let hasEpisodeLabel = false;
       for (let index = 0; index < parts.length; index++) {
         let value = parts[index];
         let match = MirekiEpisodeLabel.findEpisodeNumber(value);
@@ -83,22 +106,29 @@
           if (match) consumedParts = 2;
         }
         if (!match) continue;
+        hasEpisodeLabel = true;
         if (match.episode !== scopeEpisodeNumber) return { conflict: true };
-        const show = text(value.slice(0, match.index)) || parts[index - 1] || null;
-        const episodeTitle = text(value.slice(match.index + match.length))
-          || parts[index + consumedParts] || null;
+        const show = heading || contentText(value.slice(0, match.index))
+          || parts.slice(0, index).reverse().map(contentText).find(Boolean);
+        const episodeTitle = contentText(value.slice(match.index + match.length))
+          || parts.slice(index + consumedParts).map(contentText)
+            .find((candidate) => candidate && candidate !== show && !MirekiEpisodeLabel.findCoordinates(candidate));
         const episodeNumber = match.episode;
         if (show && episodeTitle && episodeNumber > 0) {
           return { title: episodeTitle, artist: show, episodeNumber, hasCoordinates: false, hasEpisodeLabel: true };
         }
       }
+      const episodeTitles = unique(parts.map(contentText).filter((value) => value && value !== heading));
+      if (!hasEpisodeLabel && heading && episodeTitles.length === 1) {
+        return { title: episodeTitles[0], artist: heading, hasCoordinates: false, hasEpisodeTitle: true };
+      }
       return { title: parts.length === 1 ? parts[0] : heading || parts[0], hasCoordinates: false };
     }
 
-    const before = parts.slice(0, coordinateIndex)
-      .find((value) => !MirekiEpisodeLabel.findCoordinates(value));
-    const after = parts.slice(coordinateIndex + consumed)
-      .find((value) => !MirekiEpisodeLabel.findCoordinates(value));
+    const before = parts.slice(0, coordinateIndex).map(contentText)
+      .find((value) => value && !MirekiEpisodeLabel.findCoordinates(value));
+    const after = parts.slice(coordinateIndex + consumed).map(contentText)
+      .find((value) => value && !MirekiEpisodeLabel.findCoordinates(value));
     const artist = heading && !MirekiEpisodeLabel.findCoordinates(heading) ? heading : prefix || before || null;
     const episodeTitle = suffix || after || null;
     return {
@@ -114,7 +144,7 @@
       const parsed = parseTitleScope(scope);
       if (parsed?.conflict) return parsed;
       fallback ||= parsed;
-      if (parsed?.hasCoordinates || parsed?.hasEpisodeLabel) return parsed;
+      if (parsed?.hasCoordinates || parsed?.hasEpisodeLabel || parsed?.hasEpisodeTitle) return parsed;
     }
     return fallback;
   }
@@ -142,9 +172,11 @@
 
     const result = {};
     const standardTitle = text(metadata.title);
-    if (current.hasCoordinates || current.hasEpisodeLabel || !standardTitle || /^netflix$/iu.test(standardTitle)) result.title = current.title;
+    if (current.hasCoordinates || current.hasEpisodeLabel || current.hasEpisodeTitle
+      || !standardTitle || /^netflix$/iu.test(standardTitle)) result.title = current.title;
     const standardArtist = text(metadata.artist);
-    if ((!standardArtist || /^netflix$/iu.test(standardArtist)) && current.artist) result.artist = current.artist;
+    if (/^netflix$/iu.test(standardArtist)) result.artist = current.artist || null;
+    else if (!standardArtist && current.artist) result.artist = current.artist;
     if (Number.isInteger(current.episodeNumber) && current.episodeNumber > 0) result.episodeNumber = current.episodeNumber;
     return Object.keys(result).length ? result : null;
   }
